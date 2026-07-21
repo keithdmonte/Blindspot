@@ -95,11 +95,21 @@ if (!anthropicApiKey) {
 
 const tavilyApiKey = process.env.TAVILY_API_KEY;
 if (!tavilyApiKey) {
-  console.warn("⚠ TAVILY_API_KEY not set — running without web_search (HN only).");
+  console.warn("⚠ TAVILY_API_KEY not set — running without web_search.");
+}
+
+const productHuntToken = process.env.PRODUCTHUNT_API_TOKEN;
+if (!productHuntToken) {
+  console.warn("⚠ PRODUCTHUNT_API_TOKEN not set — running without search_product_hunt.");
 }
 
 try {
-  const result = await runDiscovery(idea, { anthropicApiKey, tavilyApiKey, onEvent: logEvent });
+  const result = await runDiscovery(idea, {
+    anthropicApiKey,
+    tavilyApiKey,
+    productHuntToken,
+    onEvent: logEvent,
+  });
   console.log("\n════════════════════════════════\n");
   console.log(renderForTerminal(result.report));
   const cost =

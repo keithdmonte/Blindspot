@@ -4,8 +4,12 @@
  * system prompt stable and cacheable.
  */
 
-export function buildSystemPrompt(hasWebSearch: boolean): string {
-  const webSearchLines = hasWebSearch
+export function buildSystemPrompt(opts: {
+  discoveryTools: string[];
+  hasWebSearch: boolean;
+}): string {
+  const discovery = opts.discoveryTools.join(" and ");
+  const webSearchLines = opts.hasWebSearch
     ? "- Use web_search sparingly: to confirm a candidate exists or is a real\n" +
       "  product, or to find its own website. Not a primary discovery channel.\n"
     : "";
@@ -15,9 +19,9 @@ export function buildSystemPrompt(hasWebSearch: boolean): string {
 Today's date is ${new Date().toDateString()}.
 
 Method:
-- First turn: run search_hn for every query in the QUERY SET, as parallel tool calls in a single turn.
-- Read the results for product names, then run follow-up search_hn queries on new terms you learned: a found product's own name, category words people used in threads.
-${webSearchLines}- UNION everything. Dedup only exact duplicates (the same product twice). Keep obscure hits and flag them.
+- First turn: run ${discovery} for every query in the QUERY SET, as parallel tool calls in a single turn.
+- Read the results for product names, then run follow-up queries on new terms you learned: a found product's own name, category words people used in threads or taglines.
+${webSearchLines}- UNION everything across sources. Dedup only exact duplicates (the same product twice). Keep obscure hits and flag them.
 - Evidence or "unknown": every claim about a competitor must trace to a result you actually saw (an HN thread, a URL). If you did not see it, write "unknown". Never guess.
 
 When you have covered the query set and follow-ups (or are told to stop), write a plain-text report for a terminal. Do NOT use markdown — no **, no #, no backticks, no [links]. Bare URLs are fine. Rough is fine. Start directly with the VERDICT heading — no preamble before it. Use exactly this structure:
@@ -26,7 +30,7 @@ VERDICT
 One line: does this idea look taken, crowded, or an open lane — based only on what you found.
 
 COMPETITORS
-- Name — URL — one line on what it does — evidence: HN discussion link(s) — note if new/small/obscure
+- Name — URL — one line on what it does — evidence: HN discussion / Product Hunt link(s) — traction signal if seen (points, upvotes) — note if new/small/obscure
 
 NOTES
 Anything relevant you noticed: common complaints, adjacent-but-not-quite competitors, unclear cases. Cite the thread you saw it in.
@@ -44,10 +48,14 @@ Given the idea, produce:
 
 Queries must be short keyword phrases (2-6 words), the kind that work in a search box — not full sentences, no boolean operators.`;
 
-export function buildFirstMessage(idea: string, queries: string[]): string {
+export function buildFirstMessage(
+  idea: string,
+  queries: string[],
+  discoveryTools: string[],
+): string {
   return `PRODUCT IDEA: ${idea}
 
-QUERY SET (run search_hn for EVERY one of these; issue them as parallel tool calls):
+QUERY SET (run ${discoveryTools.join(" and ")} for EVERY one of these; issue them as parallel tool calls):
 ${queries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
 
 You may add your own follow-up queries when results suggest new terms.`;

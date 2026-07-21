@@ -16,7 +16,12 @@ export interface DiscoveryResult extends AgentResult {
 
 export async function runDiscovery(
   idea: string,
-  opts: { anthropicApiKey: string; tavilyApiKey?: string; onEvent?: EventHandler },
+  opts: {
+    anthropicApiKey: string;
+    tavilyApiKey?: string;
+    productHuntToken?: string;
+    onEvent?: EventHandler;
+  },
 ): Promise<DiscoveryResult> {
   const emit = opts.onEvent ?? (() => {});
   emit({ type: "start", idea, maxIterations: MAX_ITERATIONS });
@@ -24,14 +29,20 @@ export async function runDiscovery(
   // The SDK already retries 429s and 5xx errors with backoff; maxRetries just
   // raises the ceiling. Source API calls get their own retry wrapper.
   const client = new Anthropic({ apiKey: opts.anthropicApiKey, maxRetries: 3 });
-  const registry = buildToolRegistry({ tavilyApiKey: opts.tavilyApiKey });
+  const registry = buildToolRegistry({
+    tavilyApiKey: opts.tavilyApiKey,
+    productHuntToken: opts.productHuntToken,
+  });
+
+  // Discovery tools fan out over the query set; web_search is gap-fill only.
+  const discoveryTools = [...registry.keys()].filter((name) => name !== "web_search");
 
   const queries = await expandQueries(client, idea, emit);
 
   const result = await agentLoop({
     client,
-    systemPrompt: buildSystemPrompt(registry.has("web_search")),
-    firstMessage: buildFirstMessage(idea, queries),
+    systemPrompt: buildSystemPrompt({ discoveryTools, hasWebSearch: registry.has("web_search") }),
+    firstMessage: buildFirstMessage(idea, queries, discoveryTools),
     registry,
     onEvent: emit,
   });

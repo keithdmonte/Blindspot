@@ -1,15 +1,24 @@
 import type { SourceTool } from "./types.js";
 import { hnSearchTool } from "./hn.js";
+import { productHuntTool } from "./producthunt.js";
 import { webSearchTool } from "./web.js";
 
 /**
- * Build the tool registry for a run. Adding a source (Product Hunt,
- * AlternativeTo... — see ROADMAP.md Phase 2) is a new module + one entry here.
- * web_search is optional: without a Tavily key the run is HN-only.
+ * Build the tool registry for a run. Adding a source (AlternativeTo... — see
+ * ROADMAP.md Phase 2) is a new module + one entry here. Keyed tools are
+ * optional: missing keys shrink the registry instead of failing the run.
  */
-export function buildToolRegistry(env: { tavilyApiKey?: string }): Map<string, SourceTool> {
+export function buildToolRegistry(env: {
+  tavilyApiKey?: string;
+  productHuntToken?: string;
+}): Map<string, SourceTool> {
   const registry = new Map<string, SourceTool>();
-  for (const tool of [hnSearchTool(), ...(env.tavilyApiKey ? [webSearchTool(env.tavilyApiKey)] : [])]) {
+  const tools = [
+    hnSearchTool(),
+    ...(env.productHuntToken ? [productHuntTool(env.productHuntToken, env.tavilyApiKey)] : []),
+    ...(env.tavilyApiKey ? [webSearchTool(env.tavilyApiKey)] : []),
+  ];
+  for (const tool of tools) {
     registry.set(tool.definition.name, tool);
   }
   return registry;
