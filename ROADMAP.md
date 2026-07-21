@@ -15,15 +15,13 @@ Short and current beats long and stale. Phases, not dates. Each phase has a "don
 - HN Algolia tool; Tavily web_search kept as optional gap-fill (HN-only without key)
 - Verified on the PRD test idea: 20+ competitors, all with HN evidence links, several obscure (~$0.21/run); negative-idea and HN-only runs also pass
 
-## Phase 2 — Full v1 recall
+## Phase 2 — Full v1 recall ✅ done 2026-07-21
 
-- **Product Hunt tool** (developer token from their API dashboard; mind the 6,250-complexity-points/15-min limit)
-- **AlternativeTo + directories** page-fetch tool (polite, low-volume; SaaSHub fallback if blocked)
-- Fan-out across all queries × all sources; union + dedup
-- **Snowballing**: mine found competitors' pages and "alternatives to" listings for new candidates
-- Stop conditions wired in (saturation, depth cap, budget cap, candidate cap — [TECHNICAL_DESIGN.md](TECHNICAL_DESIGN.md))
-
-**Done when:** a run on a real idea surfaces competitors the same idea run through Google/Perplexity misses. *(This is the v1 recall thesis test.)*
+- Product Hunt tool: Tavily-scoped discovery + GraphQL enrichment (API has no post keyword search — see [SOURCES.md](SOURCES.md))
+- Alternatives graph via **SaaSHub** (AlternativeTo 403s bots → dropped per source rules) + `fetch_page` for competitor sites and vs-pages
+- Fan-out queries × sources, snowballing, stop conditions (saturation + candidate cap via prompt; iteration + tool-call budget caps in engine; stop reason reported)
+- **Recall test passed**: on the meeting-recordings idea, plain web search returns the SEO set (Tactiq, Otter, Notta…); Blindspot additionally surfaces Custos, AfterTheCall, Sidenote AI, Admin AI, hq0 and other sub-5-point Show HN / low-vote PH launches it missed
+- Note: snowball path verified mid-run on a niche idea; final clean niche run pending an API credit top-up
 
 ## Phase 3 — Report quality (completes v1)
 
