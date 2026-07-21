@@ -15,6 +15,7 @@ interface TavilyResult {
 
 export function webSearchTool(apiKey: string): SourceTool {
   return {
+    discovery: false,
     definition: {
       name: "web_search",
       description:

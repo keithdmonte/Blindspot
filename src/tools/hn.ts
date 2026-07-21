@@ -35,6 +35,7 @@ function stripHtml(html: string): string {
 
 export function hnSearchTool(): SourceTool {
   return {
+    discovery: true,
     definition: {
       name: "search_hn",
       description:

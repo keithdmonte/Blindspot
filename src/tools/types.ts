@@ -8,6 +8,12 @@ import type { EventHandler } from "../events.js";
  */
 export interface SourceTool {
   definition: Anthropic.Tool;
+  /**
+   * Discovery tools take keyword queries and fan out over the query set.
+   * Non-discovery tools (alternatives graph, page fetch, gap-fill search)
+   * are follow-up tools the model calls on things it already found.
+   */
+  discovery: boolean;
   /** Execute the call and return plain text formatted for the model. */
   run(input: unknown, emit: EventHandler): Promise<string>;
 }

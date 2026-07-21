@@ -9,7 +9,7 @@ export type DiscoveryEvent =
   | { type: "expansion_done"; queries: string[] }
   | { type: "expansion_fallback"; message: string }
   | { type: "iteration"; iteration: number; maxIterations: number }
-  | { type: "budget_exhausted" }
+  | { type: "budget_exhausted"; reason: "iteration_cap" | "tool_call_cap" }
   | { type: "tool_call"; tool: string; query: string }
   | { type: "tool_results"; tool: string; query: string; count: number }
   | { type: "tool_error"; tool: string; query: string; message: string }

@@ -188,6 +188,7 @@ async function searchViaTopics(
 
 export function productHuntTool(phToken: string, tavilyApiKey?: string): SourceTool {
   return {
+    discovery: true,
     definition: {
       name: "search_product_hunt",
       description:

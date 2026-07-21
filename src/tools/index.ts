@@ -1,4 +1,6 @@
 import type { SourceTool } from "./types.js";
+import { alternativesTool } from "./alternatives.js";
+import { fetchPageTool } from "./fetchpage.js";
 import { hnSearchTool } from "./hn.js";
 import { productHuntTool } from "./producthunt.js";
 import { webSearchTool } from "./web.js";
@@ -16,7 +18,8 @@ export function buildToolRegistry(env: {
   const tools = [
     hnSearchTool(),
     ...(env.productHuntToken ? [productHuntTool(env.productHuntToken, env.tavilyApiKey)] : []),
-    ...(env.tavilyApiKey ? [webSearchTool(env.tavilyApiKey)] : []),
+    alternativesTool(env.tavilyApiKey),
+    ...(env.tavilyApiKey ? [fetchPageTool(env.tavilyApiKey), webSearchTool(env.tavilyApiKey)] : []),
   ];
   for (const tool of tools) {
     registry.set(tool.definition.name, tool);

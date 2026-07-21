@@ -56,7 +56,7 @@ function logEvent(event: DiscoveryEvent) {
       console.log(`\n── iteration ${event.iteration}/${event.maxIterations} ──`);
       break;
     case "budget_exhausted":
-      console.log("⏰ search budget exhausted — forcing final synthesis");
+      console.log(`⏰ search budget exhausted (${event.reason}) — forcing final synthesis`);
       break;
     case "tool_call":
       console.log(`🔍 [${event.tool}] "${event.query}"`);
@@ -115,10 +115,12 @@ try {
   const cost =
     (result.usage.inputTokens * PRICE_PER_MTOK_IN + result.usage.outputTokens * PRICE_PER_MTOK_OUT) /
     1_000_000;
+  const stopped =
+    result.stoppedBy === "model" ? "stopped on its own" : `cut off by ${result.stoppedBy}`;
   console.log(
     `\n(${result.iterations} iterations, ${result.toolCalls} tool calls, ` +
       `${result.usage.inputTokens.toLocaleString()} in / ${result.usage.outputTokens.toLocaleString()} out tokens, ` +
-      `~$${cost.toFixed(2)})`,
+      `~$${cost.toFixed(2)}, ${stopped})`,
   );
 } catch (err) {
   if (err instanceof Anthropic.APIError) {

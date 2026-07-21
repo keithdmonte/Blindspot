@@ -7,13 +7,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { EventHandler } from "./events.js";
 import type { SourceTool } from "./tools/types.js";
-import { MAX_ITERATIONS, MAX_TOKENS, MODEL } from "./config.js";
+import { MAX_ITERATIONS, MAX_TOKENS, MAX_TOOL_CALLS, MODEL } from "./config.js";
+
+/** Why the run ended: the model finished on its own, or a budget cap fired. */
+export type StopReason = "model" | "iteration_cap" | "tool_call_cap";
 
 export interface AgentResult {
   report: string;
   iterations: number;
   toolCalls: number;
   usage: { inputTokens: number; outputTokens: number };
+  stoppedBy: StopReason;
 }
 
 export async function agentLoop(opts: {
@@ -37,16 +41,22 @@ export async function agentLoop(opts: {
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     emit({ type: "iteration", iteration, maxIterations: MAX_ITERATIONS });
 
-    // If this is the last allowed iteration, force a final synthesis:
-    // no tools offered, plus an instruction to wrap up with what it has.
-    const outOfBudget = iteration === MAX_ITERATIONS;
-    if (outOfBudget) {
-      emit({ type: "budget_exhausted" });
+    // If a budget cap is hit, force a final synthesis: no tools offered,
+    // plus an instruction to wrap up with what it has.
+    const capReason: StopReason | null =
+      iteration === MAX_ITERATIONS
+        ? "iteration_cap"
+        : toolCalls >= MAX_TOOL_CALLS
+          ? "tool_call_cap"
+          : null;
+    if (capReason) {
+      emit({ type: "budget_exhausted", reason: capReason });
       history.push({
         role: "user",
         content:
-          "You have reached the search limit. Stop searching and write your " +
-          "final report now, synthesizing what you have found so far.",
+          "You have reached the search budget. Stop searching and write your " +
+          "final report now, synthesizing what you have found so far. In the " +
+          "NOTES section, state that the run was cut off by the budget cap.",
       });
     }
 
@@ -55,7 +65,7 @@ export async function agentLoop(opts: {
       model: MODEL,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
-      tools: outOfBudget ? [] : definitions,
+      tools: capReason ? [] : definitions,
       messages: history,
     });
 
@@ -79,7 +89,7 @@ export async function agentLoop(opts: {
         .map((block) => block.text)
         .join("\n");
       emit({ type: "report", text: report });
-      return { report, iterations: iteration, toolCalls, usage };
+      return { report, iterations: iteration, toolCalls, usage, stoppedBy: capReason ?? "model" };
     }
 
     // 4. Tool call(s) requested → dispatch each through the registry and send
@@ -90,9 +100,8 @@ export async function agentLoop(opts: {
 
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const toolUse of toolUses) {
-      const query = String(
-        (toolUse.input as { query?: unknown }).query ?? JSON.stringify(toolUse.input),
-      );
+      const input = toolUse.input as { query?: unknown; product?: unknown; url?: unknown };
+      const query = String(input.query ?? input.product ?? input.url ?? JSON.stringify(input));
       emit({ type: "tool_call", tool: toolUse.name, query });
       toolCalls++;
 

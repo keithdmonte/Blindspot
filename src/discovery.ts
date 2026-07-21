@@ -4,7 +4,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import type { EventHandler } from "./events.js";
-import { MAX_ITERATIONS } from "./config.js";
+import { CANDIDATE_CAP, MAX_ITERATIONS } from "./config.js";
 import { agentLoop, type AgentResult } from "./agent.js";
 import { expandQueries } from "./expand.js";
 import { buildFirstMessage, buildSystemPrompt } from "./prompts.js";
@@ -34,14 +34,20 @@ export async function runDiscovery(
     productHuntToken: opts.productHuntToken,
   });
 
-  // Discovery tools fan out over the query set; web_search is gap-fill only.
-  const discoveryTools = [...registry.keys()].filter((name) => name !== "web_search");
+  // Discovery tools fan out over the query set; the rest are follow-up tools.
+  const discoveryTools = [...registry.values()]
+    .filter((tool) => tool.discovery)
+    .map((tool) => tool.definition.name);
 
   const queries = await expandQueries(client, idea, emit);
 
   const result = await agentLoop({
     client,
-    systemPrompt: buildSystemPrompt({ discoveryTools, hasWebSearch: registry.has("web_search") }),
+    systemPrompt: buildSystemPrompt({
+      discoveryTools,
+      toolNames: [...registry.keys()],
+      candidateCap: CANDIDATE_CAP,
+    }),
     firstMessage: buildFirstMessage(idea, queries, discoveryTools),
     registry,
     onEvent: emit,
