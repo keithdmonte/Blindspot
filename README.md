@@ -24,11 +24,19 @@ See [TECHNICAL_DESIGN.md](TECHNICAL_DESIGN.md) for how, [PRD.md](PRD.md) for the
 
 ## Status
 
-**Docs only — no code yet.** Builds on an existing working research-agent loop (TypeScript, Tavily + Claude API). v1 will be a CLI; UI later. See [ROADMAP.md](ROADMAP.md).
+**Phase 1 complete** — CLI runs end-to-end with query expansion and the Hacker News (Algolia) source, plus optional Tavily web search for gap-fill. Product Hunt, AlternativeTo, and snowballing are next ([ROADMAP.md](ROADMAP.md) Phase 2).
 
-## Quickstart (stub)
+## Quickstart
 
 ```bash
-# Not implemented yet. Intended v1 shape:
+npm install
+cp .env.example .env    # fill in ANTHROPIC_API_KEY (TAVILY_API_KEY optional)
+
+npm run blindspot -- "a tool that turns meeting recordings into follow-up emails"
+
+# or install the global command:
+npm link
 blindspot "a tool that turns meeting recordings into follow-up emails"
 ```
+
+A run prints the expanded query set, live search progress, then a plain-text report: VERDICT / COMPETITORS (each with HN evidence links and obscurity flags) / NOTES / SOURCES, with a token + cost footer. Typical run: ~$0.10–0.25.

@@ -7,15 +7,13 @@ Short and current beats long and stale. Phases, not dates. Each phase has a "don
 - All five docs written; v1 scope cut confirmed ([PRD.md](PRD.md))
 - v1 source APIs verified, findings date-stamped in [SOURCES.md](SOURCES.md)
 
-## Phase 1 — Core loop, first source
+## Phase 1 — Core loop, first source ✅ done 2026-07-21
 
-- Port the existing research-agent loop (TypeScript, Tavily + Claude API) into this repo
-- CLI entry: `blindspot "<idea>"`
-- Query-expansion step (idea → query set)
-- **HN Algolia tool** (free, no auth — lowest-risk source, so it goes first)
-- Minimal report output (rough text is fine; structure comes in Phase 3)
-
-**Done when:** one command runs end-to-end on a real idea and returns competitors found via HN.
+- Loop ported and made generic over a tool registry (one tool per source; Phase 2 sources are additive)
+- CLI entry: `blindspot "<idea>"` (npm link) / `npm run blindspot -- "<idea>"`
+- Query expansion via structured outputs, raw-idea fallback
+- HN Algolia tool; Tavily web_search kept as optional gap-fill (HN-only without key)
+- Verified on the PRD test idea: 20+ competitors, all with HN evidence links, several obscure (~$0.21/run); negative-idea and HN-only runs also pass
 
 ## Phase 2 — Full v1 recall
 

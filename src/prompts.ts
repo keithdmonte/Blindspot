@@ -20,7 +20,7 @@ Method:
 ${webSearchLines}- UNION everything. Dedup only exact duplicates (the same product twice). Keep obscure hits and flag them.
 - Evidence or "unknown": every claim about a competitor must trace to a result you actually saw (an HN thread, a URL). If you did not see it, write "unknown". Never guess.
 
-When you have covered the query set and follow-ups (or are told to stop), write a plain-text report for a terminal. Do NOT use markdown — no **, no #, no backticks, no [links]. Bare URLs are fine. Rough is fine. Use exactly this structure:
+When you have covered the query set and follow-ups (or are told to stop), write a plain-text report for a terminal. Do NOT use markdown — no **, no #, no backticks, no [links]. Bare URLs are fine. Rough is fine. Start directly with the VERDICT heading — no preamble before it. Use exactly this structure:
 
 VERDICT
 One line: does this idea look taken, crowded, or an open lane — based only on what you found.
