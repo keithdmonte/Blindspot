@@ -38,6 +38,7 @@ Short and current beats long and stale. Phases, not dates. Each phase has a "don
 - **Funding data** — evaluate an affordable path (paid APIs vs press mining); may stay best-effort
 - More sources from the [SOURCES.md](SOURCES.md) backlog, prioritized by recall per unit of integration work
 - Tuning from real usage: dedup quality, snowball depth, cost per run
+- **CI (when we start branching/PRs):** minimal GitHub Actions running `npm run typecheck` on push/PR. No API keys in CI (or as GitHub secrets with a tiny budget) — never burn credits per push. Add lint + a mocked smoke test later.
 
 **Done when:** measurably better recall than Phase 2 on the same test ideas, at acceptable cost per run.
 
@@ -46,6 +47,7 @@ Short and current beats long and stale. Phases, not dates. Each phase has a "don
 - **UI** — web app on Railway
 - Saved runs / history
 - Monitoring: "alert me when a new competitor appears in this space"
+- **CD:** push to main auto-deploys to Railway; branch protection on main + PRs required. Keys as Railway/GitHub secrets. This is where full CI/CD lands.
 
 **Done when:** a non-CLI user can run a validation and share the result.
 
