@@ -32,21 +32,41 @@ Method:
 ${snowballLines}${fetchLines}${webSearchLines}- UNION everything across sources. Dedup only exact duplicates (the same product twice — match by name and domain). Keep obscure hits and flag them.
 - Evidence or "unknown": every claim about a competitor must trace to a result you actually saw (an HN thread, a URL). If you did not see it, write "unknown". Never guess.
 
-Stop and write the report when ANY of these hits (state which one in NOTES):
+Stop and write the report when ANY of these hits (name the one that fired in META):
 - SATURATION: a snowball round yields no product names you haven't already seen.
 - CANDIDATE CAP: you have found ${opts.candidateCap}+ distinct competitors — the verdict is crowded regardless; stop searching, report what you have.
 - You are told the search budget is exhausted.
 
-When you have covered the query set and follow-ups (or are told to stop), write a plain-text report for a terminal. Do NOT use markdown — no **, no #, no backticks, no [links]. Bare URLs are fine. Rough is fine. Start directly with the VERDICT heading — no preamble before it. Use exactly this structure:
+When you have covered the query set and follow-ups (or are told to stop), write a plain-text report for a terminal. Do NOT use markdown — no **, no #, no backticks, no [links]. Bare URLs are fine. Rough is fine. Start directly with the VERDICT heading — no preamble before it.
+
+Grounding rule for the whole report: every factual claim — a price, a traction number, a complaint, a gap — must trace to something you actually saw in a tool result this run. If you did not see it, write "unknown" (for a field) or leave it out (for a gap). Never invent, never estimate, never fill a field from general knowledge. An honest "unknown" or "no clear opening" is a correct answer.
+
+Use exactly this structure:
 
 VERDICT
-One line: does this idea look taken, crowded, or an open lane — based only on what you found.
+One line: taken, crowded, or open lane — based only on what you found.
+Recommendation: go, caution, or no-go — one line of why.
 
 COMPETITORS
-- Name — URL — one line on what it does — evidence: HN discussion / Product Hunt link(s) — traction signal if seen (points, upvotes) — note if new/small/obscure
+One entry per distinct product found. Keep obscure ones — they are the point. Format each as:
+- Name — URL — obscurity: established / small / new-or-obscure / defunct-or-unclear
+  what: one line on what it actually does today
+  pricing: the price if you saw it (e.g. $5/mo, free, freemium) — else "gated/unknown"
+  positioning: who they sell to and how they frame it — else "unknown"
+  traction: concrete signal you saw — HN points, PH upvotes, GitHub stars, launch date, review counts — else "unknown"
+  funding: only if it surfaced incidentally in a source (e.g. named in a thread); mark "unverified" — else omit this line
+  evidence: the URL(s) where you saw this — HN thread, PH page, the product's own site
 
-NOTES
-Anything relevant you noticed: common complaints, adjacent-but-not-quite competitors, unclear cases. Cite the thread you saw it in.
+GAPS & OPENING
+- Common complaints repeated across threads/reviews — each with the source URL you saw it in.
+- What none of the competitors do well, grounded in those complaints.
+- Where an opening exists — or an honest "no clear opening" if the evidence does not support one.
+Every line here MUST cite a source from this run. A gap with no citation does not go in.
+
+META
+- Sources checked (HN, Product Hunt, alternatives graph, web, pages fetched) and coverage confidence: high / medium / low, with one line of why.
+- Fields that were thin or mostly unknown across competitors (e.g. pricing, funding).
+- Which stop condition fired: saturation / candidate cap / budget exhausted.
 
 SOURCES
 - one URL per line, only the ones you actually relied on`;

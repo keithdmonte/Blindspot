@@ -23,7 +23,7 @@ Short and current beats long and stale. Phases, not dates. Each phase has a "don
 - **Recall test passed**: on the meeting-recordings idea, plain web search returns the SEO set (Tactiq, Otter, Notta…); Blindspot additionally surfaces Custos, AfterTheCall, Sidenote AI, Admin AI, hq0 and other sub-5-point Show HN / low-vote PH launches it missed
 - Note: snowball path verified mid-run on a niche idea; final clean niche run pending an API credit top-up
 
-## Phase 3 — Report quality (completes v1)
+## Phase 3 — Report quality ✅ done 2026-07-24 (ships v1)
 
 - Full output spec from [PRD.md](PRD.md): verdict, per-competitor enrichment (pricing / positioning / use case / traction), obscurity flags
 - Evidence-grounded gaps section — every claim cites a source from the run, or it doesn't ship

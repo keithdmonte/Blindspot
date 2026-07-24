@@ -31,8 +31,8 @@ function renderForTerminal(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, `${BOLD}$1${RESET}`) // **bold** → ANSI bold
     .replace(/^#+\s*(.+)$/gm, `${BOLD}$1${RESET}`) // # heading → ANSI bold
-    .replace(/^(VERDICT|COMPETITORS|NOTES|SOURCES)\s*$/gm, `${BOLD}$1${RESET}`)
-    .replace(/(https?:\/\/[^\s)\]]+)/g, `${CYAN}$1${RESET}`);
+    .replace(/^(VERDICT|COMPETITORS|GAPS & OPENING|META|SOURCES)\s*$/gm, `${BOLD}$1${RESET}`)
+    .replace(/(https?:\/\/[^\s)\],]+)/g, `${CYAN}$1${RESET}`);
 }
 
 function logEvent(event: DiscoveryEvent) {
