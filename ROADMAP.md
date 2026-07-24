@@ -31,16 +31,17 @@ Short and current beats long and stale. Phases, not dates. Each phase has a "don
 
 **Done when:** the report matches the PRD output spec and a skeptical reader can trace every gap claim to a source. **This ships v1.**
 
-## Phase 4 — v2 recall & data
+## Phase 4 — v2 recall & data ✅ done 2026-07-24
 
-- **Reddit** source (verify API pricing/terms first)
-- **GitHub** source (open-source competitors, stars as traction)
-- **Funding data** — evaluate an affordable path (paid APIs vs press mining); may stay best-effort
-- More sources from the [SOURCES.md](SOURCES.md) backlog, prioritized by recall per unit of integration work
-- Tuning from real usage: dedup quality, snowball depth, cost per run
-- **CI (when we start branching/PRs):** minimal GitHub Actions running `npm run typecheck` on push/PR. No API keys in CI (or as GitHub secrets with a tiny budget) — never burn credits per push. Add lint + a mocked smoke test later.
+- **GitHub** source (`search_github`): REST repo search sorted by stars, keyless with optional `GITHUB_TOKEN`; stars are the traction signal
+- **Reddit** source (`search_reddit`): Tavily-scoped to reddit.com — the official Data API is paid/non-commercial, so per source rules we don't build against it. Covers builder announcements + user complaints (gap evidence)
+- **Funding data** — decision: stays best-effort/incidental (report surfaces funding only when it appears in another source, flagged unverified); a paid funding API isn't justified. See [SOURCES.md](SOURCES.md)
+- Tuning: raised `MAX_TOKENS` 8000→16000 — the richer source set pushed competitor counts high enough to truncate the final report (META/SOURCES were being cut)
+- **CI:** `.github/workflows/ci.yml` runs `npm run typecheck` on push/PR. No secrets, never runs `blindspot` itself. Lint + mocked smoke test deferred.
 
-**Done when:** measurably better recall than Phase 2 on the same test ideas, at acceptable cost per run.
+**Verified 2026-07-24** on the meeting-recordings idea: `search_github` and `search_reddit` both fire; GitHub adds open-source competitors the SEO/PH set missed (Meetily 26k⭐, Vexa 2.6k⭐, Steno AI 1.1k⭐); Reddit threads ground both competitor and gap claims; result set is a superset of the Phase 2 run; ~$0.38–0.75/run. A GitHub keyless 429 mid-run degraded gracefully (retry then error fed back, run continued).
+
+**Done when:** measurably better recall than Phase 2 on the same test ideas, at acceptable cost per run. ✅
 
 ## Phase 5 — Product
 

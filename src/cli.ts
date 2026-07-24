@@ -103,11 +103,15 @@ if (!productHuntToken) {
   console.warn("⚠ PRODUCTHUNT_API_TOKEN not set — running without search_product_hunt.");
 }
 
+// Optional: search_github runs keyless (lower rate limit); a token just raises it.
+const githubToken = process.env.GITHUB_TOKEN;
+
 try {
   const result = await runDiscovery(idea, {
     anthropicApiKey,
     tavilyApiKey,
     productHuntToken,
+    githubToken,
     onEvent: logEvent,
   });
   console.log("\n════════════════════════════════\n");

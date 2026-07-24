@@ -20,6 +20,7 @@ export async function runDiscovery(
     anthropicApiKey: string;
     tavilyApiKey?: string;
     productHuntToken?: string;
+    githubToken?: string;
     onEvent?: EventHandler;
   },
 ): Promise<DiscoveryResult> {
@@ -32,6 +33,7 @@ export async function runDiscovery(
   const registry = buildToolRegistry({
     tavilyApiKey: opts.tavilyApiKey,
     productHuntToken: opts.productHuntToken,
+    githubToken: opts.githubToken,
   });
 
   // Discovery tools fan out over the query set; the rest are follow-up tools.

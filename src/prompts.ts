@@ -64,7 +64,7 @@ GAPS & OPENING
 Every line here MUST cite a source from this run. A gap with no citation does not go in.
 
 META
-- Sources checked (HN, Product Hunt, alternatives graph, web, pages fetched) and coverage confidence: high / medium / low, with one line of why.
+- Sources checked (HN, Product Hunt, GitHub, Reddit, alternatives graph, web, pages fetched) and coverage confidence: high / medium / low, with one line of why.
 - Fields that were thin or mostly unknown across competitors (e.g. pricing, funding).
 - Which stop condition fired: saturation / candidate cap / budget exhausted.
 
