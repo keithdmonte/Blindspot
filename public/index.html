@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blindspot</title>
+  <style>
+    :root {
+      --bg: #0d1117; --panel: #161b22; --border: #30363d;
+      --fg: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+      --ok: #3fb950; --warn: #d29922; --err: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+    h1 { font-size: 26px; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 24px; }
+    form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+    label { font-size: 13px; color: var(--muted); }
+    input {
+      width: 100%; padding: 11px 13px; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 8px; color: var(--fg);
+      font-size: 15px;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    .row { display: flex; gap: 12px; align-items: flex-end; }
+    .row > div:first-child { flex: 1; }
+    button {
+      padding: 11px 22px; background: var(--accent); color: #0d1117;
+      border: 0; border-radius: 8px; font-size: 15px; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+    }
+    button:disabled { opacity: .5; cursor: default; }
+    .panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px 18px; margin-bottom: 20px;
+    }
+    .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em;
+      color: var(--muted); margin: 0 0 10px; }
+    #log { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre-wrap; word-break: break-word; max-height: 340px; overflow-y: auto; }
+    #log .t { color: var(--muted); }
+    #log .warn { color: var(--warn); }
+    #log .err { color: var(--err); }
+    #log .ok { color: var(--ok); }
+    #log a { color: var(--accent); }
+    #report { white-space: pre-wrap; word-break: break-word; }
+    #report a { color: var(--accent); }
+    #report h3 { font-size: 15px; margin: 18px 0 6px; color: var(--accent); }
+    #report strong { color: var(--fg); }
+    .meta { color: var(--muted); font-size: 13px; margin-top: 14px;
+      border-top: 1px solid var(--border); padding-top: 12px; }
+    .hidden { display: none; }
+    .error-box { color: var(--err); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Blindspot</h1>
+    <p class="sub">Find the competitors and gaps a plain web search misses.</p>
+
+    <form id="form">
+      <div>
+        <label for="idea">Product idea</label>
+        <input id="idea" name="idea" placeholder="AI tool that summarizes meeting recordings" autocomplete="off" required />
+      </div>
+      <div class="row">
+        <div>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button id="go" type="submit">Validate</button>
+      </div>
+    </form>
+
+    <div id="progress" class="panel hidden">
+      <h2>Progress</h2>
+      <div id="log"></div>
+    </div>
+
+    <div id="reportPanel" class="panel hidden">
+      <h2>Report</h2>
+      <div id="report"></div>
+      <div id="meta" class="meta"></div>
+    </div>
+  </main>
+
+  <script>
+    const form = document.getElementById("form");
+    const goBtn = document.getElementById("go");
+    const progressPanel = document.getElementById("progress");
+    const log = document.getElementById("log");
+    const reportPanel = document.getElementById("reportPanel");
+    const reportEl = document.getElementById("report");
+    const metaEl = document.getElementById("meta");
+
+    const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    function line(html, cls) {
+      const div = document.createElement("div");
+      if (cls) div.className = cls;
+      div.innerHTML = html;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // Minimal report rendering: **bold**, # headings, and linkify URLs.
+    function renderReport(text) {
+      let html = esc(text)
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/^#+\s*(.+)$/gm, "<h3>$1</h3>")
+        .replace(/(https?:\/\/[^\s)\]]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+      return html;
+    }
+
+    function renderEvent(e) {
+      switch (e.type) {
+        case "start": line("💡 idea: " + esc(e.idea)); break;
+        case "expansion_start": line("🧭 expanding idea into a query set..."); break;
+        case "expansion_done":
+          line('<span class="t">↳ ' + e.queries.length + " queries</span>"); break;
+        case "expansion_fallback":
+          line("⚠ expansion failed (" + esc(e.message) + ") — using raw idea", "warn"); break;
+        case "iteration":
+          line('<span class="t">── iteration ' + e.iteration + "/" + e.maxIterations + " ──</span>"); break;
+        case "budget_exhausted":
+          line("⏰ budget exhausted (" + esc(e.reason) + ") — forcing synthesis", "warn"); break;
+        case "tool_call":
+          line("🔍 [" + esc(e.tool) + '] "' + esc(e.query) + '"'); break;
+        case "tool_results":
+          line('<span class="t">   ↳ ' + e.count + " results</span>"); break;
+        case "tool_error":
+          line("⚠ [" + esc(e.tool) + "] failed: " + esc(e.message), "warn"); break;
+        case "retry":
+          line("↻ " + esc(e.label) + " retry " + e.attempt + "/" + e.attempts, "warn"); break;
+        case "report": line("✓ model finished", "ok"); break;
+      }
+    }
+
+    function showDone(d) {
+      reportPanel.classList.remove("hidden");
+      reportEl.innerHTML = renderReport(d.report);
+      const stopped = d.stoppedBy === "model" ? "stopped on its own" : "cut off by " + d.stoppedBy;
+      metaEl.textContent =
+        d.iterations + " iterations · " + d.toolCalls + " tool calls · " +
+        d.inputTokens.toLocaleString() + " in / " + d.outputTokens.toLocaleString() + " out · ~$" +
+        d.cost.toFixed(2) + " · " + stopped;
+    }
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const idea = document.getElementById("idea").value.trim();
+      const password = document.getElementById("password").value;
+      if (!idea) return;
+
+      goBtn.disabled = true;
+      goBtn.textContent = "Running…";
+      log.innerHTML = "";
+      progressPanel.classList.remove("hidden");
+      reportPanel.classList.add("hidden");
+
+      try {
+        const resp = await fetch("/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idea, password }),
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ error: "Request failed (" + resp.status + ")" }));
+          line("✗ " + esc(err.error || "Request failed"), "err");
+          return;
+        }
+
+        // Stream the NDJSON body: parse each complete line as it arrives.
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const raw = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!raw) continue;
+            let e;
+            try { e = JSON.parse(raw); } catch { continue; }
+            if (e.type === "done") showDone(e);
+            else if (e.type === "fatal") line("✗ " + esc(e.message), "err");
+            else renderEvent(e);
+          }
+        }
+      } catch (err) {
+        line("✗ " + esc(err.message || String(err)), "err");
+      } finally {
+        goBtn.disabled = false;
+        goBtn.textContent = "Validate";
+      }
+    });
+  </script>
+</body>
+</html>

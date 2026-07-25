@@ -40,3 +40,15 @@ blindspot "a tool that turns meeting recordings into follow-up emails"
 ```
 
 A run prints the expanded query set, live search progress, then a plain-text report: VERDICT / COMPETITORS (each with HN evidence links and obscurity flags) / NOTES / SOURCES, with a token + cost footer. Typical run: ~$0.10–0.25.
+
+## Web UI
+
+The same engine runs in the browser so a non-CLI user can validate an idea and watch it stream.
+
+```bash
+# in .env, set APP_PASSWORD (a shared gate — runs cost money, so the server
+# refuses to start without it) alongside ANTHROPIC_API_KEY.
+npm run serve                        # http://localhost:3000
+```
+
+Enter the idea + password, and progress streams live over a single NDJSON response; the report renders when the run finishes. No database yet — saved runs/history land in the next phase ([ROADMAP.md](ROADMAP.md) Phase 5).
