@@ -13,27 +13,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { DiscoveryEvent } from "./events.js";
 import { PRICE_PER_MTOK_IN, PRICE_PER_MTOK_OUT } from "./config.js";
 import { runDiscovery } from "./discovery.js";
+import { renderReportForTerminal } from "./report.js";
 
 // ---------------------------------------------------------------------------
 // Terminal rendering
 // ---------------------------------------------------------------------------
-
-const BOLD = "\x1b[1m";
-const CYAN = "\x1b[36m";
-const RESET = "\x1b[0m";
-
-/**
- * Make the report readable in a terminal: bold the section headings, color
- * URLs, and convert any markdown the model emitted anyway into real ANSI
- * styling instead of literal ** and # characters.
- */
-function renderForTerminal(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, `${BOLD}$1${RESET}`) // **bold** → ANSI bold
-    .replace(/^#+\s*(.+)$/gm, `${BOLD}$1${RESET}`) // # heading → ANSI bold
-    .replace(/^(VERDICT|COMPETITORS|GAPS & OPENING|META|SOURCES)\s*$/gm, `${BOLD}$1${RESET}`)
-    .replace(/(https?:\/\/[^\s)\],]+)/g, `${CYAN}$1${RESET}`);
-}
 
 function logEvent(event: DiscoveryEvent) {
   switch (event.type) {
@@ -115,7 +99,7 @@ try {
     onEvent: logEvent,
   });
   console.log("\n════════════════════════════════\n");
-  console.log(renderForTerminal(result.report));
+  console.log(renderReportForTerminal(result.report));
   const cost =
     (result.usage.inputTokens * PRICE_PER_MTOK_IN + result.usage.outputTokens * PRICE_PER_MTOK_OUT) /
     1_000_000;

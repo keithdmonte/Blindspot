@@ -37,39 +37,15 @@ Stop and write the report when ANY of these hits (name the one that fired in MET
 - CANDIDATE CAP: you have found ${opts.candidateCap}+ distinct competitors — the verdict is crowded regardless; stop searching, report what you have.
 - You are told the search budget is exhausted.
 
-When you have covered the query set and follow-ups (or are told to stop), write a plain-text report for a terminal. Do NOT use markdown — no **, no #, no backticks, no [links]. Bare URLs are fine. Rough is fine. Start directly with the VERDICT heading — no preamble before it.
+When you have covered the query set and follow-ups (or are told to stop), end the run by calling the submit_report tool exactly once. Do not write a prose report — all of your findings go in the submit_report fields. Call no other tool in the same turn.
 
-Grounding rule for the whole report: every factual claim — a price, a traction number, a complaint, a gap — must trace to something you actually saw in a tool result this run. If you did not see it, write "unknown" (for a field) or leave it out (for a gap). Never invent, never estimate, never fill a field from general knowledge. An honest "unknown" or "no clear opening" is a correct answer.
+Grounding rule for every field: a price, a traction number, a complaint, a gap must trace to something you actually saw in a tool result this run. If you did not see it, write "unknown" (for a text field) or leave the entry out (for a gap). Never invent, never estimate, never fill a field from general knowledge. An honest "unknown" is a correct answer.
 
-Use exactly this structure:
-
-VERDICT
-One line: taken, crowded, or open lane — based only on what you found.
-Recommendation: go, caution, or no-go — one line of why.
-
-COMPETITORS
-One entry per distinct product found. Keep obscure ones — they are the point. Format each as:
-- Name — URL — obscurity: established / small / new-or-obscure / defunct-or-unclear
-  what: one line on what it actually does today
-  pricing: the price if you saw it (e.g. $5/mo, free, freemium) — else "gated/unknown"
-  positioning: who they sell to and how they frame it — else "unknown"
-  traction: concrete signal you saw — HN points, PH upvotes, GitHub stars, launch date, review counts — else "unknown"
-  funding: only if it surfaced incidentally in a source (e.g. named in a thread); mark "unverified" — else omit this line
-  evidence: the URL(s) where you saw this — HN thread, PH page, the product's own site
-
-GAPS & OPENING
-- Common complaints repeated across threads/reviews — each with the source URL you saw it in.
-- What none of the competitors do well, grounded in those complaints.
-- Where an opening exists — or an honest "no clear opening" if the evidence does not support one.
-Every line here MUST cite a source from this run. A gap with no citation does not go in.
-
-META
-- Sources checked (HN, Product Hunt, GitHub, Reddit, alternatives graph, web, pages fetched) and coverage confidence: high / medium / low, with one line of why.
-- Fields that were thin or mostly unknown across competitors (e.g. pricing, funding).
-- Which stop condition fired: saturation / candidate cap / budget exhausted.
-
-SOURCES
-- one URL per line, only the ones you actually relied on`;
+Filling submit_report:
+- competitors: one entry per distinct product. Keep obscure ones (set obscure: true) — they are the point. Set overlap to direct / partial / adjacent. Fill what / pricing / positioning / traction from evidence, "unknown" otherwise; include funding only if it surfaced incidentally in a source.
+- gaps: only openings grounded in complaints or coverage you saw, each with evidence URLs. Use the optional stat / statLabel for a headline number (e.g. stat "0/9", statLabel "coverage"). No evidence, no gap.
+- coverage: one row per source you actually used, with how many queries you ran, roughly how many hits, a confidence, and a short note.
+- verdict / recommendation / confidence: based only on what you found. stopCondition: which condition ended the search. thinFields: fields that were mostly unknown across competitors. sources: only URLs you actually relied on.`;
 }
 
 export const EXPANSION_PROMPT = `You are preparing search queries to find ALL existing competitors for a product idea — especially small, new, obscure ones that authority-ranked search misses.
