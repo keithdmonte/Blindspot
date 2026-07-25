@@ -254,18 +254,129 @@ export function coerceReport(input: unknown): StructuredReport {
     };
   });
 
+  let verdictWhy = str(o.verdictWhy, "");
+  let salvagedComps = competitors;
+  let salvagedGaps = gaps;
+  let salvagedCov = coverage;
+  let sources = arr(o.sources).filter((s): s is string => typeof s === "string");
+
+  // Salvage: the model sometimes fills the scalar fields as JSON but then
+  // writes the rest of the report as XML tags inside verdictWhy, leaving the
+  // real arrays empty. Recover the structured data from that text.
+  if (competitors.length === 0 && /<competitor[\s>]/i.test(verdictWhy)) {
+    const s = salvageFromXml(verdictWhy);
+    if (s.competitors.length) salvagedComps = s.competitors;
+    if (s.gaps.length) salvagedGaps = s.gaps;
+    if (s.coverage.length) salvagedCov = s.coverage;
+    if (s.sources.length) sources = s.sources;
+    verdictWhy = s.verdictWhy || verdictWhy;
+  }
+
   return {
     verdict,
     recommendation,
     confidence: Math.max(0, Math.min(1, num(o.confidence, 0.5))),
-    verdictWhy: str(o.verdictWhy, ""),
-    competitors,
-    gaps,
-    coverage,
+    verdictWhy,
+    competitors: salvagedComps,
+    gaps: salvagedGaps,
+    coverage: salvagedCov,
     stopCondition,
     thinFields: arr(o.thinFields).filter((t): t is string => typeof t === "string"),
-    sources: arr(o.sources).filter((s): s is string => typeof s === "string"),
+    sources,
   };
+}
+
+/**
+ * Recover structured report data from a text blob where the model emitted the
+ * competitors / gaps / coverage as XML tags instead of JSON array fields.
+ * Tolerant on purpose: malformed tags (e.g. <stat">) and either a JSON-array
+ * or bare-URL <evidence> are both handled.
+ */
+export function salvageFromXml(text: string): {
+  verdictWhy: string;
+  competitors: Competitor[];
+  gaps: Gap[];
+  coverage: Coverage[];
+  sources: string[];
+} {
+  const tag = (block: string, name: string): string => {
+    const m = new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, "i").exec(block);
+    return m ? m[1].trim() : "";
+  };
+  const urls = (s: string): string[] => (s.match(/https?:\/\/[^\s"'<>)\]]+/g) ?? []);
+  const evidence = (block: string): string[] => {
+    const raw = tag(block, "evidence");
+    if (!raw) return [];
+    try {
+      const a = JSON.parse(raw);
+      if (Array.isArray(a)) return a.filter((x): x is string => typeof x === "string");
+    } catch {
+      /* fall through to url scrape */
+    }
+    return urls(raw);
+  };
+  const blocks = (name: string): string[] =>
+    (text.match(new RegExp(`<${name}>[\\s\\S]*?</${name}>`, "gi")) ?? []);
+  const intOf = (s: string): number => Number((s.match(/-?\d+/) ?? ["0"])[0]) || 0;
+
+  // verdictWhy = the prose before the structured section begins.
+  const cut = text.search(/<\/verdictWhy>|<competitors?>|<competitor[\s>]/i);
+  const verdictWhy = (cut >= 0 ? text.slice(0, cut) : text).trim();
+
+  const competitors: Competitor[] = blocks("competitor").map((b) => {
+    const overlapRaw = tag(b, "overlap").toLowerCase();
+    const overlap: Overlap = overlapRaw === "direct" || overlapRaw === "adjacent"
+      ? (overlapRaw as Overlap)
+      : "partial";
+    const funding = tag(b, "funding");
+    return {
+      name: tag(b, "name") || "unnamed",
+      url: tag(b, "url") || "unknown",
+      overlap,
+      obscure: /true/i.test(tag(b, "obscure")),
+      what: tag(b, "what") || "unknown",
+      pricing: tag(b, "pricing") || "unknown",
+      positioning: tag(b, "positioning") || "unknown",
+      traction: tag(b, "traction") || "unknown",
+      ...(funding ? { funding } : {}),
+      evidence: evidence(b),
+    };
+  });
+
+  const gaps: Gap[] = blocks("gap").map((b) => {
+    const stat = tag(b, "stat");
+    const statLabel = tag(b, "statLabel");
+    return {
+      ...(stat ? { stat } : {}),
+      ...(statLabel ? { statLabel } : {}),
+      title: tag(b, "title"),
+      why: tag(b, "why"),
+      evidence: evidence(b),
+    };
+  });
+
+  // Coverage rows are usually <item>…</item> inside <coverage>.
+  const covSection = tag(text, "coverage") || text;
+  const coverage: Coverage[] = (covSection.match(/<item>[\s\S]*?<\/item>/gi) ?? []).map((b) => {
+    const confRaw = tag(b, "confidence").toLowerCase();
+    const confidence: Confidence =
+      confRaw === "high" || confRaw === "low" || confRaw === "thin" ? (confRaw as Confidence) : "medium";
+    return {
+      source: tag(b, "source"),
+      queries: intOf(tag(b, "queries")),
+      hits: intOf(tag(b, "hits")),
+      confidence,
+      note: tag(b, "note"),
+    };
+  });
+
+  // Sources: prefer an explicit <sources> block, else union of all evidence URLs.
+  const srcSection = tag(text, "sources");
+  const sources = srcSection
+    ? [...new Set(urls(srcSection))]
+    : [...new Set([...competitors, ...gaps].flatMap((x) => x.evidence))];
+
+  return { verdictWhy, competitors, gaps, coverage, sources };
 }
 
 // ---------------------------------------------------------------------------

@@ -39,6 +39,8 @@ Stop and write the report when ANY of these hits (name the one that fired in MET
 
 When you have covered the query set and follow-ups (or are told to stop), end the run by calling the submit_report tool exactly once. Do not write a prose report — all of your findings go in the submit_report fields. Call no other tool in the same turn.
 
+Fill the competitors, gaps, and coverage fields as proper JSON arrays of objects (the tool schema). Do NOT write XML tags, and do NOT pack the whole report into verdictWhy — verdictWhy is one or two sentences only; the products go in the competitors array.
+
 Grounding rule for every field: a price, a traction number, a complaint, a gap must trace to something you actually saw in a tool result this run. If you did not see it, write "unknown" (for a text field) or leave the entry out (for a gap). Never invent, never estimate, never fill a field from general knowledge. An honest "unknown" is a correct answer.
 
 Filling submit_report:
