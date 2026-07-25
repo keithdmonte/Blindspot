@@ -51,4 +51,6 @@ The same engine runs in the browser so a non-CLI user can validate an idea and w
 npm run serve                        # http://localhost:3000
 ```
 
-Enter the idea + password, and progress streams live over a single NDJSON response; the report renders when the run finishes. No database yet — saved runs/history land in the next phase ([ROADMAP.md](ROADMAP.md) Phase 5).
+Enter the idea + access code, and the run streams live over a single NDJSON response — phase chips (expand → sweep → chase → score) and a timestamped log — then renders a report: a verdict block (colored by taken / crowded / open lane, with confidence), competitor cards (overlap + obscurity flags), gap cards, and a source-coverage table.
+
+The report is **structured data**, not prose: the agent ends every run by calling a `submit_report` tool whose fields (`competitors[]`, `gaps[]`, `coverage[]`, verdict + confidence) the CLI and web UI both render — see `src/report.ts`. No database yet — saved runs/history land in the next phase ([ROADMAP.md](ROADMAP.md) Phase 5).

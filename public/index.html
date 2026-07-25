@@ -4,204 +4,462 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Blindspot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
-    :root {
-      --bg: #0d1117; --panel: #161b22; --border: #30363d;
-      --fg: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
-      --ok: #3fb950; --warn: #d29922; --err: #f85149;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; background: var(--bg); color: var(--fg);
-      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    main { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
-    h1 { font-size: 26px; margin: 0 0 4px; }
-    .sub { color: var(--muted); margin: 0 0 24px; }
-    form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-    label { font-size: 13px; color: var(--muted); }
-    input {
-      width: 100%; padding: 11px 13px; background: var(--panel);
-      border: 1px solid var(--border); border-radius: 8px; color: var(--fg);
-      font-size: 15px;
-    }
-    input:focus { outline: none; border-color: var(--accent); }
-    .row { display: flex; gap: 12px; align-items: flex-end; }
-    .row > div:first-child { flex: 1; }
-    button {
-      padding: 11px 22px; background: var(--accent); color: #0d1117;
-      border: 0; border-radius: 8px; font-size: 15px; font-weight: 600;
-      cursor: pointer; white-space: nowrap;
-    }
-    button:disabled { opacity: .5; cursor: default; }
-    .panel {
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: 10px; padding: 16px 18px; margin-bottom: 20px;
-    }
-    .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em;
-      color: var(--muted); margin: 0 0 10px; }
-    #log { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
-      white-space: pre-wrap; word-break: break-word; max-height: 340px; overflow-y: auto; }
-    #log .t { color: var(--muted); }
-    #log .warn { color: var(--warn); }
-    #log .err { color: var(--err); }
-    #log .ok { color: var(--ok); }
-    #log a { color: var(--accent); }
-    #report { white-space: pre-wrap; word-break: break-word; }
-    #report a { color: var(--accent); }
-    #report h3 { font-size: 15px; margin: 18px 0 6px; color: var(--accent); }
-    #report strong { color: var(--fg); }
-    .meta { color: var(--muted); font-size: 13px; margin-top: 14px;
-      border-top: 1px solid var(--border); padding-top: 12px; }
-    .hidden { display: none; }
-    .error-box { color: var(--err); }
+    html, body { background: #0a0a0b; }
+    body { margin: 0; }
+    a { color: #d5d5da; text-decoration: underline; text-decoration-color: rgba(255,255,255,0.22); text-underline-offset: 3px; transition: color 150ms ease, text-decoration-color 150ms ease; }
+    a:hover { color: #ffffff; text-decoration-color: rgba(255,255,255,0.7); }
+    ::selection { background: rgba(255,255,255,0.16); color: #ffffff; }
+    ::placeholder { color: #55555c; opacity: 1; }
+    .bs-log::-webkit-scrollbar { width: 8px; }
+    .bs-log::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 4px; }
+    .bs-log::-webkit-scrollbar-track { background: transparent; }
+    button { cursor: pointer; }
+    button:focus-visible { outline: none; box-shadow: 0 0 0 2px #0a0a0b, 0 0 0 4px rgba(255,255,255,0.55); }
+    @keyframes bsBlink { 0%, 60% { opacity: 1; } 61%, 100% { opacity: 0; } }
+    @keyframes bsPulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(94,194,105,0.5); } 50% { opacity: 0.7; box-shadow: 0 0 0 5px rgba(94,194,105,0); } }
+    /* interaction states (dc style-focus/hover/active ported to CSS) */
+    .bs-field:focus { border-color: rgba(255,255,255,0.45) !important; outline: none; box-shadow: 0 0 0 4px rgba(255,255,255,0.08) !important; }
+    .bs-white:hover { transform: translateY(-1px); box-shadow: 0 0 36px rgba(255,255,255,0.22); }
+    .bs-white:active { transform: scale(0.97); box-shadow: none; }
+    .bs-ghost:hover { border-color: rgba(255,255,255,0.4) !important; background: rgba(255,255,255,0.06) !important; }
+    .bs-comp:hover { border-color: rgba(255,255,255,0.28) !important; box-shadow: 0 12px 32px rgb(0 0 0 / 0.4); transform: translateY(-2px); }
+    .bs-covrow:hover { background: rgba(255,255,255,0.03); }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <main>
-    <h1>Blindspot</h1>
-    <p class="sub">Find the competitors and gaps a plain web search misses.</p>
+<div style="min-height: 100vh; background: radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,0.07), transparent 60%), #0a0a0b; color: #f5f5f4; font-family: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif; display: flex; flex-direction: column;">
 
-    <form id="form">
-      <div>
-        <label for="idea">Product idea</label>
-        <input id="idea" name="idea" placeholder="AI tool that summarizes meeting recordings" autocomplete="off" required />
+  <header style="position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(255,255,255,0.07); background: rgba(10,10,11,0.72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; max-width: 1024px; margin: 0 auto; padding: 16px 28px; box-sizing: border-box;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="width: 10px; height: 10px; border-radius: 3px; background: linear-gradient(135deg, #ffffff, #a8a8b0); display: inline-block; box-shadow: 0 0 16px rgba(255,255,255,0.5);"></span>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.01em; font-size: 17px; color: #f5f5f4;">Blindspot</span>
       </div>
-      <div class="row">
-        <div>
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" required />
-        </div>
-        <button id="go" type="submit">Validate</button>
+      <span style="display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,0.1); border-radius: 9999px; padding: 5px 12px; font-size: 11.5px; letter-spacing: 0.04em; color: #9d9da6;"><span style="width: 6px; height: 6px; border-radius: 9999px; background: #5ec269; animation: bsPulse 2.2s ease-in-out infinite;"></span>Private preview</span>
+    </div>
+  </header>
+
+  <!-- INPUT -->
+  <section id="screen-input" style="width: 100%; max-width: 660px; margin: 0 auto; padding: 0 28px 72px; box-sizing: border-box; flex: 1; display: flex; flex-direction: column; justify-content: center; background-image: radial-gradient(rgba(255,255,255,0.045) 1px, transparent 1.4px); background-size: 26px 26px; background-position: center top;">
+    <div style="text-align: center; padding-top: 56px;">
+      <span style="display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.03); border-radius: 9999px; padding: 6px 14px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #9d9da6;"><span style="color: #d8b36a;">◆</span> Deep-search idea validator</span>
+      <h1 style="margin: 22px 0 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.035em; font-size: clamp(40px, 6.5vw, 58px); line-height: 1.02; background: linear-gradient(180deg, #ffffff 30%, #9a9aa2); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; text-wrap: balance;">Is your idea taken?</h1>
+      <p style="margin: 18px auto 0; max-width: 500px; font-size: 15.5px; line-height: 1.7; color: #9d9da6; text-wrap: pretty;">Describe what you're building. Blindspot sweeps the corners a plain search misses: the three-upvote Show HN post, the week-old launch, the half-abandoned repo that already does it.</p>
+    </div>
+    <div style="margin-top: 44px; background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; box-shadow: 0 24px 60px rgb(0 0 0 / 0.5), inset 0 1px 0 rgba(255,255,255,0.06); padding: 24px; display: flex; flex-direction: column; gap: 16px; text-align: left;">
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <label for="bs-idea" style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #9d9da6;">Your product idea</label>
+        <textarea id="bs-idea" class="bs-field" rows="3" placeholder="e.g. an AI that writes your standup update from yesterday's commits and calendar…" style="display: block; width: 100%; box-sizing: border-box; min-height: 104px; resize: vertical; padding: 14px 16px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); border-radius: 11px; color: #f5f5f4; font-family: inherit; font-size: 15px; line-height: 1.6; transition: border-color 150ms ease, box-shadow 150ms ease;"></textarea>
+        <p id="bs-ideaErr" class="hidden" style="margin: 0; font-size: 12.5px; color: #e5695c;"></p>
       </div>
-    </form>
-
-    <div id="progress" class="panel hidden">
-      <h2>Progress</h2>
-      <div id="log"></div>
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <input id="bs-code" class="bs-field" type="password" aria-label="Access code" placeholder="Access code" autocomplete="current-password" style="width: 172px; min-height: 46px; box-sizing: border-box; padding: 0 14px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); border-radius: 11px; color: #f5f5f4; font-family: inherit; font-size: 14px; transition: border-color 150ms ease, box-shadow 150ms ease;" />
+        <div style="flex: 1; min-width: 8px;"></div>
+        <button id="bs-validate" class="bs-white" style="min-height: 46px; padding: 0 28px; border-radius: 11px; border: 1px solid #ffffff; background: #ffffff; color: #0a0a0b; font-weight: 600; font-size: 14px; font-family: inherit; letter-spacing: 0.01em; box-shadow: 0 0 24px rgba(255,255,255,0.12); transition: transform 150ms ease, box-shadow 150ms ease;">Validate →</button>
+      </div>
+      <p id="bs-codeErr" class="hidden" style="margin: -8px 0 0; font-size: 12.5px; color: #e5695c;"></p>
+      <div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 14px; font-size: 12.5px; color: #6f6f77;">
+        <span>Takes a few minutes · every claim arrives with a link · <span style="border: 1px solid rgba(255,255,255,0.14); border-radius: 5px; padding: 1px 7px; font-size: 11px; color: #9d9da6; font-variant-numeric: tabular-nums;">⌘ ↵</span></span>
+        <div style="flex: 1;"></div>
+        <a href="#" id="bs-demo">Use the demo idea →</a>
+      </div>
     </div>
+    <div style="margin-top: 40px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;" id="bs-sources"></div>
+  </section>
 
-    <div id="reportPanel" class="panel hidden">
-      <h2>Report</h2>
-      <div id="report"></div>
-      <div id="meta" class="meta"></div>
+  <!-- RUNNING -->
+  <section id="screen-running" class="hidden" style="width: 100%; max-width: 760px; margin: 0 auto; padding: 44px 28px 56px; box-sizing: border-box; flex: 1; display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="width: 8px; height: 8px; border-radius: 9999px; background: #5ec269; animation: bsPulse 1.8s ease-in-out infinite;"></span>
+      <span style="font-size: 11.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #9d9da6;">Run in progress</span>
+      <div style="flex: 1;"></div>
+      <span id="bs-elapsed" style="font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; color: #f5f5f4; font-variant-numeric: tabular-nums;">0.0s</span>
     </div>
-  </main>
+    <h2 style="margin: 14px 0 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.025em; font-size: 32px; line-height: 1.1; background: linear-gradient(180deg, #ffffff 30%, #9a9aa2); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Searching the corners.</h2>
+    <div style="margin-top: 14px; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.02); border-radius: 11px; padding: 12px 16px; font-size: 13.5px; line-height: 1.6; color: #c9c9cf;"><span style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #d8b36a; margin-right: 10px;">idea</span><span id="bs-runidea"></span></div>
+    <div style="margin-top: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <div id="bs-phases" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"></div>
+      <div style="flex: 1;"></div>
+      <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">hits <span id="bs-hits">0</span> · candidates <span id="bs-cands">–</span></span>
+    </div>
+    <div class="bs-log" id="bs-log" style="margin-top: 14px; height: 420px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.2)), #0c0c0e; box-shadow: 0 24px 60px rgb(0 0 0 / 0.45), inset 0 1px 0 rgba(255,255,255,0.05); padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.85; font-variant-numeric: tabular-nums;"></div>
+    <div style="margin-top: 16px; display: flex; align-items: center; gap: 12px;">
+      <button id="bs-stop" class="bs-ghost" style="min-height: 44px; padding: 0 20px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03); color: #f5f5f4; font-weight: 600; font-size: 13.5px; font-family: inherit; transition: border-color 150ms ease, background 150ms ease;">Stop the run</button>
+    </div>
+  </section>
 
-  <script>
-    const form = document.getElementById("form");
-    const goBtn = document.getElementById("go");
-    const progressPanel = document.getElementById("progress");
-    const log = document.getElementById("log");
-    const reportPanel = document.getElementById("reportPanel");
-    const reportEl = document.getElementById("report");
-    const metaEl = document.getElementById("meta");
+  <!-- REPORT -->
+  <section id="screen-report" class="hidden" style="width: 100%; max-width: 1024px; margin: 0 auto; padding: 44px 28px 0; box-sizing: border-box; flex: 1;"></section>
 
-    const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+</div>
 
-    function line(html, cls) {
-      const div = document.createElement("div");
-      if (cls) div.className = cls;
-      div.innerHTML = html;
-      log.appendChild(div);
-      log.scrollTop = log.scrollHeight;
-    }
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const isUrl = (s) => typeof s === "string" && /^https?:\/\//.test(s);
 
-    // Minimal report rendering: **bold**, # headings, and linkify URLs.
-    function renderReport(text) {
-      let html = esc(text)
-        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-        .replace(/^#+\s*(.+)$/gm, "<h3>$1</h3>")
-        .replace(/(https?:\/\/[^\s)\]]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-      return html;
-    }
+  const DEMO = "An AI that writes your standup update from yesterday's commits, PRs and calendar, and posts it to Slack before 9am.";
+  const SOURCES = ["Hacker News", "Product Hunt", "GitHub", "Reddit", "Alternatives graph", "Open web"];
 
-    function renderEvent(e) {
-      switch (e.type) {
-        case "start": line("💡 idea: " + esc(e.idea)); break;
-        case "expansion_start": line("🧭 expanding idea into a query set..."); break;
-        case "expansion_done":
-          line('<span class="t">↳ ' + e.queries.length + " queries</span>"); break;
-        case "expansion_fallback":
-          line("⚠ expansion failed (" + esc(e.message) + ") — using raw idea", "warn"); break;
-        case "iteration":
-          line('<span class="t">── iteration ' + e.iteration + "/" + e.maxIterations + " ──</span>"); break;
-        case "budget_exhausted":
-          line("⏰ budget exhausted (" + esc(e.reason) + ") — forcing synthesis", "warn"); break;
-        case "tool_call":
-          line("🔍 [" + esc(e.tool) + '] "' + esc(e.query) + '"'); break;
-        case "tool_results":
-          line('<span class="t">   ↳ ' + e.count + " results</span>"); break;
-        case "tool_error":
-          line("⚠ [" + esc(e.tool) + "] failed: " + esc(e.message), "warn"); break;
-        case "retry":
-          line("↻ " + esc(e.label) + " retry " + e.attempt + "/" + e.attempts, "warn"); break;
-        case "report": line("✓ model finished", "ok"); break;
+  const TAG = { search_hn: "hn", search_product_hunt: "ph", search_github: "gh", search_reddit: "rd",
+    search_alternatives: "alt", web_search: "web", fetch_page: "page", submit_report: "sys" };
+  const tagOf = (t) => TAG[t] || (t || "").replace(/^search_/, "").slice(0, 4);
+
+  const VERDICT = {
+    "crowded":   { color: "#e8b04b", lead: "Crowded,",  rest: "but there's a lane." },
+    "taken":     { color: "#e5695c", lead: "Taken,",    rest: "and well defended." },
+    "open lane": { color: "#5ec269", lead: "Open lane,", rest: "move fast." },
+  };
+  const OVERLAP = {
+    direct: { label: "direct overlap", color: "#e8b04b" },
+    partial: { label: "partial overlap", color: "#9d9da6" },
+    adjacent: { label: "adjacent", color: "#6f6f77" },
+  };
+  const CONF = { high: "#5ec269", medium: "#9d9da6", low: "#e8b04b", thin: "#e8b04b" };
+
+  // ---- source pills -------------------------------------------------------
+  $("bs-sources").innerHTML = SOURCES.map((s) =>
+    `<span style="border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); border-radius: 9999px; padding: 5px 13px; font-size: 11.5px; letter-spacing: 0.03em; color: #6f6f77;">${esc(s)}</span>`).join("");
+
+  // ---- phases -------------------------------------------------------------
+  const PHASES = ["expand", "sweep", "chase", "score"];
+  let phaseIdx = -1, finished = false;
+  function setPhase(i) { if (i > phaseIdx) { phaseIdx = i; renderPhases(); } }
+  function renderPhases() {
+    $("bs-phases").innerHTML = PHASES.map((lb, i) => {
+      const done = finished || i < phaseIdx;
+      const active = !finished && i === phaseIdx;
+      const mark = done ? "✓ " : active ? "▸ " : "· ";
+      const color = done ? "#5ec269" : active ? "#f5f5f4" : "#55555c";
+      const border = done ? "rgba(94,194,105,0.35)" : active ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.08)";
+      const bg = done ? "rgba(94,194,105,0.07)" : active ? "rgba(255,255,255,0.06)" : "transparent";
+      return `<span style="border: 1px solid ${border}; background: ${bg}; color: ${color}; border-radius: 9999px; padding: 4px 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;">${mark}${esc(lb)}</span>`;
+    }).join("");
+  }
+
+  // ---- live log -----------------------------------------------------------
+  let hits = 0, t0 = 0, timer = null, lastResultSpan = null;
+  const allRows = []; // kept for the report's full-log toggle
+  function tsNow() { return "+" + ((Date.now() - t0) / 1000).toFixed(1) + "s"; }
+
+  function phaseRow(text) {
+    const html = `<div style="margin: 12px 0 4px; color: #d8b36a; letter-spacing: 0.14em; text-transform: uppercase; font-size: 10.5px;">── ${esc(text)}</div>`;
+    appendRow(html);
+  }
+  function logRow(opts) {
+    const { t = "", tag = "", m = "", r = "", s = "", o = false, k = "t" } = opts;
+    const mc = k === "w" ? "#e8b04b" : k === "o" ? "#5ec269" : "#b6b6bd";
+    const rc = k === "o" ? "#5ec269" : "#f5f5f4";
+    const html = `<div style="display: flex; gap: 12px;">
+      <span style="width: 52px; flex: none; text-align: right; color: #4a4a50;">${esc(t)}</span>
+      <span style="width: 36px; flex: none; color: #6f6f77;">${esc(tag)}</span>
+      <span style="flex: 1; min-width: 0; overflow-wrap: anywhere; color: ${mc};">${esc(m)} <span class="bs-res" style="font-weight: 600; color: ${rc};">${esc(r)}</span> <span style="color: #83838b;">${esc(s)}</span>${o ? '<span style="color: #d8b36a;"> ◆</span>' : ""}</span>
+    </div>`;
+    return appendRow(html);
+  }
+  function appendRow(html) {
+    const el = $("bs-log");
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    const node = div.firstElementChild;
+    el.appendChild(node);
+    allRows.push(html);
+    if (near) el.scrollTop = el.scrollHeight;
+    return node;
+  }
+
+  function onEvent(e) {
+    switch (e.type) {
+      case "start":
+        $("bs-runidea").textContent = e.idea; setPhase(0); break;
+      case "expansion_start":
+        phaseRow("expanding the idea"); break;
+      case "expansion_done":
+        logRow({ t: tsNow(), tag: "plan", m: e.queries.length + " queries drafted" }); break;
+      case "expansion_fallback":
+        logRow({ t: tsNow(), tag: "plan", k: "w", m: "expansion failed, using raw idea" }); break;
+      case "iteration":
+        if (e.iteration === 1) { setPhase(1); phaseRow("sweeping the sources"); }
+        else if (e.iteration === 2) { setPhase(2); phaseRow("chasing evidence"); }
+        break;
+      case "budget_exhausted":
+        setPhase(3); phaseRow("scoring the field");
+        logRow({ t: tsNow(), tag: "sys", k: "w", m: "budget reached (" + e.reason + "), wrapping up" }); break;
+      case "tool_call": {
+        const node = logRow({ t: tsNow(), tag: tagOf(e.tool), m: e.query });
+        lastResultSpan = node.querySelector(".bs-res");
+        break;
       }
+      case "tool_results":
+        hits += e.count || 0; $("bs-hits").textContent = hits;
+        if (lastResultSpan) { lastResultSpan.textContent = "→ " + e.count + " results"; lastResultSpan = null; }
+        else logRow({ t: "", tag: "", k: "o", r: "→ " + e.count + " results" });
+        break;
+      case "tool_error":
+        logRow({ t: tsNow(), tag: tagOf(e.tool), k: "w", m: "failed: " + e.message }); break;
+      case "retry":
+        logRow({ t: tsNow(), tag: "sys", k: "w", m: e.label + " retry " + e.attempt + "/" + e.attempts }); break;
+      case "report":
+        setPhase(3); logRow({ t: tsNow(), tag: "sys", k: "o", r: "report ready" }); break;
     }
+  }
 
-    function showDone(d) {
-      reportPanel.classList.remove("hidden");
-      reportEl.innerHTML = renderReport(d.report);
-      const stopped = d.stoppedBy === "model" ? "stopped on its own" : "cut off by " + d.stoppedBy;
-      metaEl.textContent =
-        d.iterations + " iterations · " + d.toolCalls + " tool calls · " +
-        d.inputTokens.toLocaleString() + " in / " + d.outputTokens.toLocaleString() + " out · ~$" +
-        d.cost.toFixed(2) + " · " + stopped;
-    }
+  // ---- report -------------------------------------------------------------
+  function link(text, href) {
+    const h = isUrl(href) ? href : "#";
+    const tgt = isUrl(href) ? ' target="_blank" rel="noopener"' : "";
+    return `<a href="${esc(h)}"${tgt}>${esc(text)} ↗</a>`;
+  }
 
-    form.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      const idea = document.getElementById("idea").value.trim();
-      const password = document.getElementById("password").value;
-      if (!idea) return;
+  // Strip dashes the model likes to use: em dash -> comma, en dash -> hyphen
+  // (keeps numeric ranges readable). URLs are never passed through this.
+  const CT = (s) => String(s == null ? "" : s).replace(/\s*—\s*/g, ", ").replace(/\s*–\s*/g, "-");
+  function cleanReport(r) {
+    return {
+      ...r,
+      verdictWhy: CT(r.verdictWhy),
+      thinFields: (r.thinFields || []).map(CT),
+      competitors: (r.competitors || []).map((c) => ({
+        ...c, name: CT(c.name), what: CT(c.what), pricing: CT(c.pricing),
+        positioning: CT(c.positioning), traction: CT(c.traction),
+        ...(c.funding ? { funding: CT(c.funding) } : {}),
+      })),
+      gaps: (r.gaps || []).map((g) => ({
+        ...g, title: CT(g.title), why: CT(g.why), statLabel: CT(g.statLabel),
+      })),
+      coverage: (r.coverage || []).map((c) => ({ ...c, source: CT(c.source), note: CT(c.note) })),
+    };
+  }
 
-      goBtn.disabled = true;
-      goBtn.textContent = "Running…";
-      log.innerHTML = "";
-      progressPanel.classList.remove("hidden");
-      reportPanel.classList.add("hidden");
+  function renderReport(rawReport, stats) {
+    const r = cleanReport(rawReport);
+    const v = VERDICT[r.verdict] || VERDICT.crowded;
+    const mix = (pct) => `color-mix(in oklab, ${v.color} ${pct}%, transparent)`;
+    const comps = r.competitors || [], gaps = r.gaps || [], cov = r.coverage || [];
+    const kept = comps.length;
+    const obscureN = comps.filter((c) => c.obscure).length;
 
-      try {
-        const resp = await fetch("/run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idea, password }),
-        });
+    const compCards = comps.map((c) => {
+      const ov = OVERLAP[c.overlap] || OVERLAP.partial;
+      const initials = (c.name || "?")[0].toUpperCase();
+      const links = [];
+      if (isUrl(c.url)) links.push(link("site", c.url));
+      (c.evidence || []).forEach((u) => { if (isUrl(u)) links.push(link("evidence", u)); });
+      const meta = [
+        c.pricing && c.pricing !== "unknown" ? `pricing ${esc(c.pricing)}` : "",
+        c.positioning && c.positioning !== "unknown" ? `for ${esc(c.positioning)}` : "",
+        c.funding ? `funding ${esc(c.funding)}` : "",
+      ].filter(Boolean).map((x) => `<span style="color:#9d9da6;">${x}</span>`).join('<span style="color:#4a4a50;">·</span>');
+      return `<div class="bs-comp" style="background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 9px; transition: border-color 200ms ease-out, box-shadow 200ms ease-out, transform 200ms ease-out;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="width: 30px; height: 30px; flex: none; border-radius: 8px; background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04)); border: 1px solid rgba(255,255,255,0.12); display: inline-flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; color: #f5f5f4;">${esc(initials)}</span>
+          <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.01em; font-size: 16.5px; color: #f5f5f4;">${esc(c.name)}</span>
+          ${c.obscure ? '<span style="display: inline-flex; align-items: center; border: 1px solid rgba(216,179,106,0.4); color: #d8b36a; background: rgba(216,179,106,0.08); border-radius: 9999px; padding: 1px 9px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em;">◆ obscure</span>' : ""}
+          <div style="flex: 1;"></div>
+          ${c.traction && c.traction !== "unknown" ? `<span style="font-size: 13px; font-weight: 600; color: #f5f5f4; white-space: nowrap; font-variant-numeric: tabular-nums;">${esc(c.traction)}</span>` : ""}
+        </div>
+        <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #9d9da6; text-wrap: pretty;">${esc(c.what)}</p>
+        <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-top: 2px;">
+          <span style="font-weight: 600; color: ${ov.color};">${ov.label}</span>
+          ${meta ? '<span style="color: #4a4a50;">·</span>' + meta : ""}
+        </div>
+        ${links.length ? `<div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 12px;">${links.join("")}</div>` : ""}
+      </div>`;
+    }).join("");
 
-        if (!resp.ok) {
-          const err = await resp.json().catch(() => ({ error: "Request failed (" + resp.status + ")" }));
-          line("✗ " + esc(err.error || "Request failed"), "err");
-          return;
-        }
+    const gapCards = gaps.map((g) => `
+      <div style="background: linear-gradient(180deg, rgba(94,194,105,0.05), rgba(255,255,255,0.01)); border: 1px solid rgba(94,194,105,0.18); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px;">
+        ${g.stat ? `<div style="display: flex; align-items: baseline; gap: 10px;">
+          <span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; color: #5ec269; font-variant-numeric: tabular-nums;">${esc(g.stat)}</span>
+          <span style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #6f6f77;">${esc(g.statLabel || "")}</span>
+        </div>` : ""}
+        <div style="font-size: 14.5px; font-weight: 600; color: #f5f5f4;">${esc(g.title)}</div>
+        <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #9d9da6; text-wrap: pretty;">${esc(g.why)}</p>
+        ${(g.evidence || []).some(isUrl) ? `<div style="margin-top: 2px; display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px;">${(g.evidence || []).filter(isUrl).map((u) => link("source", u)).join("")}</div>` : ""}
+      </div>`).join("");
 
-        // Stream the NDJSON body: parse each complete line as it arrives.
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          let nl;
-          while ((nl = buf.indexOf("\n")) >= 0) {
-            const raw = buf.slice(0, nl).trim();
-            buf = buf.slice(nl + 1);
-            if (!raw) continue;
-            let e;
-            try { e = JSON.parse(raw); } catch { continue; }
-            if (e.type === "done") showDone(e);
-            else if (e.type === "fatal") line("✗ " + esc(e.message), "err");
-            else renderEvent(e);
+    const covGrid = "minmax(130px, 180px) 56px 56px 80px minmax(120px, 1fr)";
+    const covRows = cov.map((c) => `
+      <div class="bs-covrow" style="display: grid; grid-template-columns: ${covGrid}; gap: 10px; padding: 11px 18px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 13px; font-variant-numeric: tabular-nums; transition: background 150ms ease;">
+        <span style="font-weight: 600; color: #f5f5f4;">${esc(c.source)}</span>
+        <span style="color: #9d9da6;">${esc(c.queries)}</span>
+        <span style="color: #9d9da6;">${esc(c.hits)}</span>
+        <span style="font-weight: 600; color: ${CONF[c.confidence] || "#9d9da6"};">${esc(c.confidence)}</span>
+        <span style="color: #6f6f77;">${esc(c.note)}</span>
+      </div>`).join("");
+
+    const stopLabel = { saturation: "saturation", candidate_cap: "candidate cap", budget_exhausted: "budget cap" }[r.stopCondition] || r.stopCondition;
+    const runDate = new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+    const cost = typeof stats.cost === "number" ? "~$" + stats.cost.toFixed(2) : "";
+    const tokens = (stats.inputTokens + stats.outputTokens).toLocaleString();
+
+    const fullLog = allRows.join("");
+
+    $("screen-report").innerHTML = `
+      <div>
+        <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+          <span style="font-size: 11.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #d8b36a;">Verdict</span>
+          <span style="font-size: 12.5px; color: #6f6f77; font-variant-numeric: tabular-nums;">${runDate} · ${cov.length}/${cov.length} sources reporting</span>
+          <div style="flex: 1;"></div>
+          <button class="bs-ghost bs-newidea" style="min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03); color: #f5f5f4; font-weight: 600; font-size: 13px; font-family: inherit; transition: border-color 150ms ease;">← New idea</button>
+        </div>
+        <h2 style="margin: 20px 0 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.035em; font-size: clamp(36px, 5.2vw, 50px); line-height: 1.04; text-wrap: balance;"><span style="color: ${v.color}; text-shadow: 0 0 48px ${mix(35)};">${esc(v.lead)}</span> <span style="color: #f5f5f4;">${esc(v.rest)}</span></h2>
+        <div style="margin-top: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+          <span style="display: inline-flex; align-items: center; border: 1px solid ${mix(40)}; color: ${v.color}; background: ${mix(10)}; border-radius: 9999px; padding: 5px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;">${esc(r.verdict)}</span>
+          <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">Confidence ${r.confidence.toFixed(2)} · recommendation ${esc(r.recommendation)} · ${kept} competitors</span>
+        </div>
+        <p style="margin: 16px 0 0; max-width: 660px; font-size: 15.5px; line-height: 1.7; color: #c9c9cf; text-wrap: pretty;">${esc(r.verdictWhy)}</p>
+      </div>
+
+      <div style="margin-top: 56px;">
+        <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 22px; color: #f5f5f4;">Competitors</h3>
+          <span style="font-size: 13px; color: #6f6f77;">${kept} found</span>
+          <div style="flex: 1;"></div>
+          ${obscureN ? '<span style="font-size: 12px; color: #9d9da6;"><span style="color: #d8b36a;">◆</span> surfaced only by deep search</span>' : ""}
+        </div>
+        <div style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px;">
+          ${compCards || '<p style="color:#6f6f77; font-size:14px;">No direct competitors surfaced.</p>'}
+        </div>
+      </div>
+
+      <div style="margin-top: 56px;">
+        <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 22px; color: #f5f5f4;">Gaps &amp; openings</h3>
+          <span style="font-size: 13px; color: #6f6f77;">Where the field is thin, with the receipts</span>
+        </div>
+        <div style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+          ${gapCards || '<p style="color:#6f6f77; font-size:14px;">No clearly grounded opening.</p>'}
+        </div>
+      </div>
+
+      <div style="margin-top: 56px;">
+        <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 22px; color: #f5f5f4;">Coverage</h3>
+          <span style="font-size: 13px; color: #6f6f77;">What was checked, and how hard</span>
+        </div>
+        <div style="margin-top: 18px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; overflow: hidden;">
+          <div style="display: grid; grid-template-columns: ${covGrid}; gap: 10px; padding: 10px 18px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6f6f77; background: rgba(255,255,255,0.03);">
+            <span>Source</span><span>Calls</span><span>Hits</span><span>Signal</span><span>Note</span>
+          </div>
+          ${covRows}
+        </div>
+        ${r.thinFields && r.thinFields.length ? `<div style="margin-top: 12px; border: 1px solid rgba(232,176,75,0.28); background: rgba(232,176,75,0.06); border-radius: 12px; padding: 13px 18px; font-size: 13px; line-height: 1.6; color: #e8b04b;">⚠ Thin spots: ${esc(r.thinFields.join(", "))}. Weigh those claims accordingly.</div>` : ""}
+      </div>
+
+      <div style="margin-top: 44px;">
+        <button class="bs-ghost bs-togglelog" style="min-height: 44px; padding: 0 20px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03); color: #f5f5f4; font-weight: 600; font-size: 13.5px; font-family: inherit; transition: border-color 150ms ease;">View the full run log</button>
+        <div class="bs-log bs-fulllog hidden" style="margin-top: 12px; max-height: 360px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; background: #0c0c0e; padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.85; font-variant-numeric: tabular-nums;">${fullLog}</div>
+      </div>
+
+      ${r.sources && r.sources.length ? `<div style="margin-top: 28px;"><div style="font-size: 11.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6f6f77; margin-bottom: 10px;">Sources</div><div style="display: flex; flex-direction: column; gap: 5px; font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all;">${r.sources.map((s) => isUrl(s) ? `<a href="${esc(s)}" target="_blank" rel="noopener">${esc(s)}</a>` : `<span style="color:#6f6f77;">${esc(s)}</span>`).join("")}</div></div>` : ""}
+
+      <div style="margin-top: 48px; border-top: 1px solid rgba(255,255,255,0.08); padding: 20px 0 64px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <span style="font-size: 12px; color: #6f6f77; font-variant-numeric: tabular-nums;">Stopped by ${esc(stopLabel)} · ${stats.iterations} passes · ${stats.toolCalls} tool calls · ${tokens} tokens · ${cost}</span>
+        <div style="flex: 1;"></div>
+        <button class="bs-white bs-newidea" style="min-height: 46px; padding: 0 26px; border-radius: 11px; border: 1px solid #ffffff; background: #ffffff; color: #0a0a0b; font-weight: 600; font-size: 14px; font-family: inherit; box-shadow: 0 0 24px rgba(255,255,255,0.1); transition: transform 150ms ease, box-shadow 150ms ease;">Validate another idea</button>
+      </div>`;
+
+    $("screen-report").querySelectorAll(".bs-newidea").forEach((b) => b.addEventListener("click", reset));
+    const toggle = $("screen-report").querySelector(".bs-togglelog");
+    const full = $("screen-report").querySelector(".bs-fulllog");
+    toggle.addEventListener("click", () => {
+      const open = full.classList.toggle("hidden");
+      toggle.textContent = open ? "View the full run log" : "Hide the run log";
+    });
+  }
+
+  // ---- flow ---------------------------------------------------------------
+  let controller = null;
+  function show(id) {
+    for (const s of ["input", "running", "report"]) $("screen-" + s).classList.toggle("hidden", s !== id);
+  }
+  function reset() {
+    if (controller) { controller.abort(); controller = null; }
+    clearInterval(timer); show("input");
+    fieldErr("bs-ideaErr", ""); fieldErr("bs-codeErr", "");
+  }
+  function fieldErr(id, msg) { const el = $(id); el.textContent = msg || ""; el.classList.toggle("hidden", !msg); }
+
+  async function run() {
+    const idea = $("bs-idea").value.trim();
+    const code = $("bs-code").value;
+    fieldErr("bs-ideaErr", idea ? "" : "Describe the idea first, a sentence is enough.");
+    fieldErr("bs-codeErr", code ? "" : "Enter the access code.");
+    if (!idea || !code) return;
+
+    // reset run state
+    $("bs-log").innerHTML = ""; allRows.length = 0; lastResultSpan = null;
+    phaseIdx = -1; finished = false; hits = 0;
+    $("bs-hits").textContent = "0"; $("bs-cands").textContent = "–";
+    $("bs-runidea").textContent = idea;
+    renderPhases();
+    show("running");
+    $("bs-validate").disabled = true;
+    t0 = Date.now();
+    timer = setInterval(() => { $("bs-elapsed").textContent = ((Date.now() - t0) / 1000).toFixed(1) + "s"; }, 100);
+    controller = new AbortController();
+
+    try {
+      const resp = await fetch("/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea, password: code }),
+        signal: controller.signal,
+      });
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({ error: "Request failed (" + resp.status + ")" }));
+        clearInterval(timer); show("input");
+        if (resp.status === 401) fieldErr("bs-codeErr", j.error || "Wrong access code.");
+        else fieldErr("bs-ideaErr", j.error || "Request failed.");
+        return;
+      }
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const raw = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!raw) continue;
+          let e; try { e = JSON.parse(raw); } catch { continue; }
+          if (e.type === "done") {
+            clearInterval(timer);
+            finished = true; renderPhases();
+            $("bs-cands").textContent = (e.report.competitors || []).length;
+            renderReport(e.report, e);
+            show("report");
+            window.scrollTo(0, 0);
+          } else if (e.type === "fatal") {
+            clearInterval(timer); show("input"); fieldErr("bs-ideaErr", e.message);
+          } else {
+            onEvent(e);
           }
         }
-      } catch (err) {
-        line("✗ " + esc(err.message || String(err)), "err");
-      } finally {
-        goBtn.disabled = false;
-        goBtn.textContent = "Validate";
       }
-    });
-  </script>
+    } catch (err) {
+      if (err.name === "AbortError") return; // user hit Stop
+      clearInterval(timer); show("input"); fieldErr("bs-ideaErr", err.message || String(err));
+    } finally {
+      $("bs-validate").disabled = false;
+      controller = null;
+    }
+  }
+
+  $("bs-validate").addEventListener("click", run);
+  $("bs-stop").addEventListener("click", reset);
+  $("bs-demo").addEventListener("click", (e) => { e.preventDefault(); $("bs-idea").value = DEMO; $("bs-idea").focus(); });
+  $("bs-idea").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run(); });
+</script>
 </body>
 </html>
