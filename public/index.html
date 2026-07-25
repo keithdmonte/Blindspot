@@ -251,18 +251,19 @@
       const links = [];
       if (isUrl(c.url)) links.push(link("site", c.url));
       (c.evidence || []).forEach((u) => { if (isUrl(u)) links.push(link("evidence", u)); });
-      const meta = [
-        c.pricing && c.pricing !== "unknown" ? `pricing ${esc(c.pricing)}` : "",
-        c.positioning && c.positioning !== "unknown" ? `for ${esc(c.positioning)}` : "",
-        c.funding ? `funding ${esc(c.funding)}` : "",
-      ].filter(Boolean).map((x) => `<span style="color:#9d9da6;">${x}</span>`).join('<span style="color:#4a4a50;">·</span>');
+      // Real traction is a full sentence, not a short "▲ 412" chip — keep it in
+      // the wrapping meta line (bright) so it never overflows the card header.
+      const metaItems = [];
+      if (c.traction && c.traction !== "unknown") metaItems.push(`<span style="color:#f5f5f4; font-weight:600;">${esc(c.traction)}</span>`);
+      if (c.pricing && c.pricing !== "unknown") metaItems.push(`<span style="color:#9d9da6;">pricing ${esc(c.pricing)}</span>`);
+      if (c.positioning && c.positioning !== "unknown") metaItems.push(`<span style="color:#9d9da6;">for ${esc(c.positioning)}</span>`);
+      if (c.funding) metaItems.push(`<span style="color:#9d9da6;">funding ${esc(c.funding)}</span>`);
+      const meta = metaItems.join('<span style="color:#4a4a50;">·</span>');
       return `<div class="bs-comp" style="background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 9px; transition: border-color 200ms ease-out, box-shadow 200ms ease-out, transform 200ms ease-out;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="width: 30px; height: 30px; flex: none; border-radius: 8px; background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04)); border: 1px solid rgba(255,255,255,0.12); display: inline-flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; color: #f5f5f4;">${esc(initials)}</span>
           <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.01em; font-size: 16.5px; color: #f5f5f4;">${esc(c.name)}</span>
           ${c.obscure ? '<span style="display: inline-flex; align-items: center; border: 1px solid rgba(216,179,106,0.4); color: #d8b36a; background: rgba(216,179,106,0.08); border-radius: 9999px; padding: 1px 9px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em;">◆ obscure</span>' : ""}
-          <div style="flex: 1;"></div>
-          ${c.traction && c.traction !== "unknown" ? `<span style="font-size: 13px; font-weight: 600; color: #f5f5f4; white-space: nowrap; font-variant-numeric: tabular-nums;">${esc(c.traction)}</span>` : ""}
         </div>
         <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #9d9da6; text-wrap: pretty;">${esc(c.what)}</p>
         <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-top: 2px;">
