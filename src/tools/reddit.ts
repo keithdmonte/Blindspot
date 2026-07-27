@@ -57,7 +57,13 @@ export function redditTool(tavilyKey: string): SourceTool {
       });
 
       const results = response.results ?? [];
-      emit({ type: "tool_results", tool: "search_reddit", query, count: results.length });
+      emit({
+        type: "tool_results",
+        tool: "search_reddit",
+        query,
+        count: results.length,
+        results: results.map((r) => ({ title: r.title, url: r.url })),
+      });
 
       if (results.length === 0) {
         return "No Reddit results for this query. Try different keywords.";

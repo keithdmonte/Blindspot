@@ -8,12 +8,13 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { EventHandler } from "./events.js";
 import type { SourceTool } from "./tools/types.js";
 import { MAX_ITERATIONS, MAX_TOKENS, MAX_TOOL_CALLS, MODEL } from "./config.js";
+import { coerceReport, REPORT_TOOL, reportTool, type StructuredReport } from "./report.js";
 
 /** Why the run ended: the model finished on its own, or a budget cap fired. */
 export type StopReason = "model" | "iteration_cap" | "tool_call_cap";
 
 export interface AgentResult {
-  report: string;
+  report: StructuredReport;
   iterations: number;
   toolCalls: number;
   usage: { inputTokens: number; outputTokens: number };
@@ -30,7 +31,8 @@ export async function agentLoop(opts: {
   const { client, systemPrompt, firstMessage, registry } = opts;
   const emit = opts.onEvent ?? (() => {});
 
-  const definitions = [...registry.values()].map((tool) => tool.definition);
+  // Source tools plus submit_report — the tool the model calls to end the run.
+  const definitions = [...[...registry.values()].map((tool) => tool.definition), reportTool];
 
   // Full conversation history — resent to the API on every turn.
   const history: Anthropic.MessageParam[] = [{ role: "user", content: firstMessage }];
@@ -54,18 +56,20 @@ export async function agentLoop(opts: {
       history.push({
         role: "user",
         content:
-          "You have reached the search budget. Stop searching and write your " +
-          "final report now, synthesizing what you have found so far. In the " +
-          "NOTES section, state that the run was cut off by the budget cap.",
+          "You have reached the search budget. Stop searching and call " +
+          "submit_report now with what you have found so far, setting " +
+          "stopCondition to budget_exhausted.",
       });
     }
 
-    // 1. Call the model with the full history (+ tools, unless forcing a report)
+    // 1. Call the model. Normally it may search or call submit_report; at the
+    //    budget cap we force submit_report so the run always ends with a report.
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
-      tools: capReason ? [] : definitions,
+      tools: capReason ? [reportTool] : definitions,
+      tool_choice: capReason ? { type: "tool", name: REPORT_TOOL } : undefined,
       messages: history,
     });
 
@@ -82,22 +86,30 @@ export async function agentLoop(opts: {
     //    (and thinking) blocks in history, which the API requires.
     history.push({ role: "assistant", content: response.content });
 
-    // 3. No tool call → this is the final report. Extract the text and stop.
-    if (response.stop_reason !== "tool_use") {
-      const report = response.content
-        .filter((block): block is Anthropic.TextBlock => block.type === "text")
-        .map((block) => block.text)
-        .join("\n");
-      emit({ type: "report", text: report });
-      return { report, iterations: iteration, toolCalls, usage, stoppedBy: capReason ?? "model" };
-    }
-
-    // 4. Tool call(s) requested → dispatch each through the registry and send
-    //    every result back in ONE user message (required for parallel calls).
     const toolUses = response.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
     );
 
+    // 3. submit_report → the run is done. Its validated input IS the report.
+    const reportCall = toolUses.find((t) => t.name === REPORT_TOOL);
+    if (reportCall) {
+      const report = coerceReport(reportCall.input);
+      emit({ type: "report", report });
+      return { report, iterations: iteration, toolCalls, usage, stoppedBy: capReason ?? "model" };
+    }
+
+    // 3b. Model ended its turn without searching and without a report — nudge
+    //     it to finish through the tool instead of stalling.
+    if (response.stop_reason !== "tool_use") {
+      history.push({
+        role: "user",
+        content: "Finish by calling submit_report with your structured findings.",
+      });
+      continue;
+    }
+
+    // 4. Source-tool calls → dispatch each through the registry and send every
+    //    result back in ONE user message (required for parallel calls).
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const toolUse of toolUses) {
       const input = toolUse.input as { query?: unknown; product?: unknown; url?: unknown };

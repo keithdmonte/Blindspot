@@ -8,11 +8,13 @@
   },
   "scripts": {
     "blindspot": "tsx src/cli.ts",
+    "serve": "tsx src/server.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.3",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "fastify": "^5.10.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
