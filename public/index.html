@@ -67,11 +67,9 @@
         <p id="bs-ideaErr" class="hidden" style="margin: 0; font-size: 12.5px; color: #e5695c;"></p>
       </div>
       <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-        <input id="bs-code" class="bs-field" type="password" aria-label="Access code" placeholder="Access code" autocomplete="current-password" style="width: 172px; min-height: 46px; box-sizing: border-box; padding: 0 14px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); border-radius: 11px; color: #f5f5f4; font-family: inherit; font-size: 14px; transition: border-color 150ms ease, box-shadow 150ms ease;" />
         <div style="flex: 1; min-width: 8px;"></div>
         <button id="bs-validate" class="bs-white" style="min-height: 46px; padding: 0 28px; border-radius: 11px; border: 1px solid #ffffff; background: #ffffff; color: #0a0a0b; font-weight: 600; font-size: 14px; font-family: inherit; letter-spacing: 0.01em; box-shadow: 0 0 24px rgba(255,255,255,0.12); transition: transform 150ms ease, box-shadow 150ms ease;">Validate →</button>
       </div>
-      <p id="bs-codeErr" class="hidden" style="margin: -8px 0 0; font-size: 12.5px; color: #e5695c;"></p>
       <div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 14px; font-size: 12.5px; color: #6f6f77;">
         <span>Takes a few minutes · every claim arrives with a link · <span style="border: 1px solid rgba(255,255,255,0.14); border-radius: 5px; padding: 1px 7px; font-size: 11px; color: #9d9da6; font-variant-numeric: tabular-nums;">⌘ ↵</span></span>
         <div style="flex: 1;"></div>
@@ -583,16 +581,14 @@
   function reset() {
     if (controller) { controller.abort(); controller = null; }
     clearInterval(timer); show("input");
-    fieldErr("bs-ideaErr", ""); fieldErr("bs-codeErr", "");
+    fieldErr("bs-ideaErr", "");
   }
   function fieldErr(id, msg) { const el = $(id); el.textContent = msg || ""; el.classList.toggle("hidden", !msg); }
 
   async function run() {
     const idea = $("bs-idea").value.trim();
-    const code = $("bs-code").value;
     fieldErr("bs-ideaErr", idea ? "" : "Describe the idea first, a sentence is enough.");
-    fieldErr("bs-codeErr", code ? "" : "Enter the access code.");
-    if (!idea || !code) return;
+    if (!idea) return;
 
     // reset run state
     $("bs-log").innerHTML = ""; allRows.length = 0; lastResultSpan = null; lastAct = null; lastCard = null;
@@ -611,14 +607,13 @@
       const resp = await fetch("/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea, password: code }),
+        body: JSON.stringify({ idea }),
         signal: controller.signal,
       });
       if (!resp.ok) {
         const j = await resp.json().catch(() => ({ error: "Request failed (" + resp.status + ")" }));
         clearInterval(timer); show("input");
-        if (resp.status === 401) fieldErr("bs-codeErr", j.error || "Wrong access code.");
-        else fieldErr("bs-ideaErr", j.error || "Request failed.");
+        fieldErr("bs-ideaErr", j.error || "Request failed.");
         return;
       }
       const reader = resp.body.getReader();

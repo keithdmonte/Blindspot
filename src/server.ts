@@ -6,13 +6,14 @@
  * server forwards each event to the browser as a line of NDJSON over a single
  * long-lived POST /run response. No database yet — history lands in PR2.
  *
- * Run: npm run serve   (needs ANTHROPIC_API_KEY + APP_PASSWORD in .env)
+ * Run: npm run serve   (needs ANTHROPIC_API_KEY in .env)
+ *
+ * No auth gate — local-only. Add a spend guard before any public deploy.
  */
 import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import Anthropic from "@anthropic-ai/sdk";
 import type { DiscoveryEvent } from "./events.js";
@@ -32,33 +33,14 @@ if (!anthropicApiKey) {
   process.exit(1);
 }
 
-const appPassword = process.env.APP_PASSWORD;
-if (!appPassword) {
-  console.error(
-    "Missing APP_PASSWORD. The web app is refusing to start without a gate — " +
-      "runs cost money and an open URL drains the wallet. Set APP_PASSWORD in .env.",
-  );
-  process.exit(1);
-}
-
 const tavilyApiKey = process.env.TAVILY_API_KEY;
 const productHuntToken = process.env.PRODUCTHUNT_API_TOKEN;
 const githubToken = process.env.GITHUB_TOKEN;
 const port = Number(process.env.PORT ?? 3000);
 
-/** Constant-time password check so we don't leak length/prefix via timing. */
-function passwordOk(supplied: unknown): boolean {
-  if (typeof supplied !== "string") return false;
-  const a = Buffer.from(supplied);
-  const b = Buffer.from(appPassword as string);
-  // timingSafeEqual throws on length mismatch, so guard it — but still run a
-  // comparison against a fixed buffer to keep timing roughly constant.
-  if (a.length !== b.length) {
-    timingSafeEqual(b, b);
-    return false;
-  }
-  return timingSafeEqual(a, b);
-}
+// NOTE: no auth gate yet — this app is local-only. Before deploying to a public
+// URL, add a spend guard (password, rate limit, or per-run cap): each /run call
+// spends Anthropic credits, so an open endpoint drains the wallet.
 
 // Map raw errors to short, user-safe messages. Raw API bodies (credit balance,
 // request ids, auth details) must never reach the browser.
@@ -99,16 +81,10 @@ app.get("/health", async () => ({ ok: true }));
 
 interface RunBody {
   idea?: unknown;
-  password?: unknown;
 }
 
 app.post("/run", async (req, reply) => {
   const body = (req.body ?? {}) as RunBody;
-
-  if (!passwordOk(body.password)) {
-    reply.code(401).send({ error: "Wrong password." });
-    return;
-  }
 
   const idea = typeof body.idea === "string" ? body.idea.trim() : "";
   if (!idea) {
