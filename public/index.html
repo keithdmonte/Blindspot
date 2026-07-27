@@ -76,7 +76,7 @@
         <a href="#" id="bs-demo">Use the demo idea →</a>
       </div>
     </div>
-    <div style="margin-top: 40px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;" id="bs-sources"></div>
+    <p style="margin: 40px auto 0; text-align: center; font-size: 13px; letter-spacing: 0.02em; color: #6f6f77;">See who already built it.</p>
   </section>
 
   <!-- RUNNING -->
@@ -111,7 +111,6 @@
   const isUrl = (s) => typeof s === "string" && /^https?:\/\//.test(s);
 
   const DEMO = "An AI that writes your standup update from yesterday's commits, PRs and calendar, and posts it to Slack before 9am.";
-  const SOURCES = ["Hacker News", "Product Hunt", "GitHub", "Reddit", "Alternatives graph", "Open web"];
 
   const TAG = { search_hn: "hn", search_product_hunt: "ph", search_github: "gh", search_reddit: "rd",
     search_alternatives: "alt", web_search: "web", fetch_page: "page", submit_report: "sys" };
@@ -133,10 +132,6 @@
     stale:  { label: "stale",  color: "#e8b04b" },
     dead:   { label: "dead",   color: "#e5695c" },
   };
-
-  // ---- source pills -------------------------------------------------------
-  $("bs-sources").innerHTML = SOURCES.map((s) =>
-    `<span style="border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); border-radius: 9999px; padding: 5px 13px; font-size: 11.5px; letter-spacing: 0.03em; color: #6f6f77;">${esc(s)}</span>`).join("");
 
   // ---- phases -------------------------------------------------------------
   const PHASES = ["expand", "sweep", "chase", "score"];
