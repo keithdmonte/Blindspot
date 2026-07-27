@@ -21,6 +21,13 @@
     button:focus-visible { outline: none; box-shadow: 0 0 0 2px #0a0a0b, 0 0 0 4px rgba(255,255,255,0.55); }
     @keyframes bsBlink { 0%, 60% { opacity: 1; } 61%, 100% { opacity: 0; } }
     @keyframes bsPulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(94,194,105,0.5); } 50% { opacity: 0.7; box-shadow: 0 0 0 5px rgba(94,194,105,0); } }
+    /* Claude-style shimmer sweep: a bright band travels left across the text. */
+    @keyframes bsShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .bs-shimmer { background: linear-gradient(90deg, #7a7a82 0%, #7a7a82 38%, #ffffff 50%, #7a7a82 62%, #7a7a82 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; animation: bsShimmer 2.6s linear infinite; }
+    .bs-pending { background: linear-gradient(90deg, #55555c 0%, #55555c 38%, #e8e8ee 50%, #55555c 62%, #55555c 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent !important; animation: bsShimmer 1.5s linear infinite; }
+    @keyframes bsSpin { to { transform: rotate(360deg); } }
+    .bs-spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.16); border-top-color: #e8e8ee; display: inline-block; animation: bsSpin 0.7s linear infinite; }
+    @media (prefers-reduced-motion: reduce) { .bs-shimmer, .bs-pending, .bs-spinner { animation: none; } }
     /* interaction states (dc style-focus/hover/active ported to CSS) */
     .bs-field:focus { border-color: rgba(255,255,255,0.45) !important; outline: none; box-shadow: 0 0 0 4px rgba(255,255,255,0.08) !important; }
     .bs-white:hover { transform: translateY(-1px); box-shadow: 0 0 36px rgba(255,255,255,0.22); }
@@ -28,6 +35,8 @@
     .bs-ghost:hover { border-color: rgba(255,255,255,0.4) !important; background: rgba(255,255,255,0.06) !important; }
     .bs-comp:hover { border-color: rgba(255,255,255,0.28) !important; box-shadow: 0 12px 32px rgb(0 0 0 / 0.4); transform: translateY(-2px); }
     .bs-covrow:hover { background: rgba(255,255,255,0.03); }
+    .bs-srrow:hover { background: rgba(255,255,255,0.05); }
+    .bs-showall:hover { color: rgba(255,255,255,0.8); }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -80,14 +89,14 @@
       <div style="flex: 1;"></div>
       <span id="bs-elapsed" style="font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; color: #f5f5f4; font-variant-numeric: tabular-nums;">0.0s</span>
     </div>
-    <h2 style="margin: 14px 0 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.025em; font-size: 32px; line-height: 1.1; background: linear-gradient(180deg, #ffffff 30%, #9a9aa2); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Searching the corners.</h2>
+    <h2 class="bs-shimmer" style="margin: 14px 0 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.025em; font-size: 32px; line-height: 1.1;">Searching the corners.</h2>
     <div style="margin-top: 14px; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.02); border-radius: 11px; padding: 12px 16px; font-size: 13.5px; line-height: 1.6; color: #c9c9cf;"><span style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #d8b36a; margin-right: 10px;">idea</span><span id="bs-runidea"></span></div>
     <div style="margin-top: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
       <div id="bs-phases" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"></div>
       <div style="flex: 1;"></div>
       <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">hits <span id="bs-hits">0</span> · candidates <span id="bs-cands">–</span></span>
     </div>
-    <div class="bs-log" id="bs-log" style="margin-top: 14px; height: 420px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.2)), #0c0c0e; box-shadow: 0 24px 60px rgb(0 0 0 / 0.45), inset 0 1px 0 rgba(255,255,255,0.05); padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.85; font-variant-numeric: tabular-nums;"></div>
+    <div id="bs-log" style="margin-top: 8px; min-height: 140px; font-size: 14px;"></div>
     <div style="margin-top: 16px; display: flex; align-items: center; gap: 12px;">
       <button id="bs-stop" class="bs-ghost" style="min-height: 44px; padding: 0 20px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03); color: #f5f5f4; font-weight: 600; font-size: 13.5px; font-family: inherit; transition: border-color 150ms ease, background 150ms ease;">Stop the run</button>
     </div>
@@ -147,66 +156,238 @@
   const allRows = []; // kept for the report's full-log toggle
   function tsNow() { return "+" + ((Date.now() - t0) / 1000).toFixed(1) + "s"; }
 
-  function phaseRow(text) {
-    const html = `<div style="margin: 12px 0 4px; color: #d8b36a; letter-spacing: 0.14em; text-transform: uppercase; font-size: 10.5px;">── ${esc(text)}</div>`;
-    appendRow(html);
+  // Friendly names for each source tool — the client sees these, not tool ids.
+  const SRC = { search_hn: "Hacker News", search_product_hunt: "Product Hunt",
+    search_github: "GitHub", search_reddit: "Reddit",
+    search_alternatives: "the alternatives graph", web_search: "the open web",
+    fetch_page: "a page", submit_report: "Blindspot" };
+  const srcOf = (t) => SRC[t] || (t || "").replace(/^search_/, "").replace(/_/g, " ");
+  const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+  // A soft section heading between phases.
+  function sectionRow(text) {
+    return appendRow(`<div style="margin: 16px 0 6px; color: #9d9da6; font-weight: 600; font-size: 12px; letter-spacing: 0.03em;">${esc(cap(text))}</div>`);
   }
-  function logRow(opts) {
-    const { t = "", tag = "", m = "", r = "", s = "", o = false, k = "t" } = opts;
-    const mc = k === "w" ? "#e8b04b" : k === "o" ? "#5ec269" : "#b6b6bd";
-    const rc = k === "o" ? "#5ec269" : "#f5f5f4";
-    const html = `<div style="display: flex; gap: 12px;">
-      <span style="width: 52px; flex: none; text-align: right; color: #4a4a50;">${esc(t)}</span>
-      <span style="width: 36px; flex: none; color: #6f6f77;">${esc(tag)}</span>
-      <span style="flex: 1; min-width: 0; overflow-wrap: anywhere; color: ${mc};">${esc(m)} <span class="bs-res" style="font-weight: 600; color: ${rc};">${esc(r)}</span> <span style="color: #83838b;">${esc(s)}</span>${o ? '<span style="color: #d8b36a;"> ◆</span>' : ""}</span>
-    </div>`;
-    return appendRow(html);
+
+  // One activity line: spinner + text (+ optional detail) + right-side status.
+  // While running the text shimmers; settleAct() turns it into a check + result.
+  function actRow({ text, sub = "", done = false, tone = "" }) {
+    const color = tone === "w" ? "#e8b04b" : "#5ec269";
+    const icon = done
+      ? `<span style="color:${color}; font-size:13px; line-height:19px;">✓</span>`
+      : `<span class="bs-spinner"></span>`;
+    return appendRow(`<div class="bs-act" style="display:flex; align-items:flex-start; gap:11px; padding:8px 2px;">
+      <span class="bs-act-icon" style="width:16px; flex:none; display:inline-flex; justify-content:center; padding-top:2px;">${icon}</span>
+      <div style="flex:1; min-width:0;">
+        <div class="bs-act-text ${done ? "" : "bs-shimmer"}" style="font-size:14px; color:#e6e6ea; overflow-wrap:anywhere;">${esc(text)}</div>
+        ${sub ? `<div style="margin-top:2px; font-size:12.5px; color:#6f6f77; overflow-wrap:anywhere;">${esc(sub)}</div>` : ""}
+      </div>
+      <span class="bs-act-status" style="flex:none; font-size:12.5px; color:#6f6f77; padding-top:2px; white-space:nowrap;"></span>
+    </div>`);
+  }
+
+  // Settle a running row: stop the shimmer, swap spinner for a check, show result.
+  function settleAct(node, { status = "", tone = "" }) {
+    if (!node) return;
+    const color = tone === "w" ? "#e8b04b" : "#5ec269";
+    const icon = node.querySelector(".bs-act-icon");
+    if (icon) icon.innerHTML = `<span style="color:${color}; font-size:13px; line-height:19px;">✓</span>`;
+    const txt = node.querySelector(".bs-act-text");
+    if (txt) txt.classList.remove("bs-shimmer");
+    const st = node.querySelector(".bs-act-status");
+    if (st) { st.textContent = status; st.style.color = tone === "w" ? "#e8b04b" : "#83838b"; }
   }
   function appendRow(html) {
-    const el = $("bs-log");
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
     const div = document.createElement("div");
     div.innerHTML = html;
     const node = div.firstElementChild;
-    el.appendChild(node);
+    appendNode(node);
     allRows.push(html);
-    if (near) el.scrollTop = el.scrollHeight;
     return node;
   }
 
+  // Append a DOM node to the live log and keep the newest block in view.
+  function appendNode(node) {
+    $("bs-log").appendChild(node);
+    scrollToNewest();
+    return node;
+  }
+
+  // ---- auto-scroll (page scrolls, not a fixed box) ------------------------
+  // Follow the newest block while running; stand down the moment the user
+  // scrolls up, and pick back up once they return to the bottom.
+  let autoScroll = true;
+  function scrollToNewest() {
+    if (!autoScroll || $("screen-running").classList.contains("hidden")) return;
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+  }
+  const nearPageBottom = () =>
+    window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80;
+  window.addEventListener("wheel", (e) => { if (e.deltaY < -2) autoScroll = false; }, { passive: true });
+  window.addEventListener("keydown", (e) => {
+    if (["ArrowUp", "PageUp", "Home"].includes(e.key)) autoScroll = false;
+  });
+  window.addEventListener("scroll", () => { if (nearPageBottom()) autoScroll = true; }, { passive: true });
+
+  // ---- SearchResultCard ---------------------------------------------------
+  // Grouped search block: a header line (icon + query + result count) with an
+  // optional result card below it. Props: { source, query, status, results[],
+  // count }. Returns the block's DOM node, augmented with _settle()/_fail().
+  const SRC_ICON = {
+    github: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 014 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>',
+    reddit: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm5.6 9.9a1.3 1.3 0 01.15.62c0 2.15-2.5 3.9-5.6 3.9s-5.6-1.75-5.6-3.9c0-.22.05-.43.14-.62a1.28 1.28 0 111.53-2.02c.86-.58 2.02-.95 3.3-1l.63-2.95a.27.27 0 01.32-.2l2.11.45a.9.9 0 11-.12.53l-1.88-.4-.56 2.64c1.26.06 2.4.43 3.25 1.01a1.28 1.28 0 111.53 2.02zM9.4 12.5a.9.9 0 100-1.8.9.9 0 000 1.8zm5.2 0a.9.9 0 100-1.8.9.9 0 000 1.8zm-.4 1.83a.27.27 0 01.38.38c-.6.6-1.55.87-2.58.87s-1.98-.28-2.58-.87a.27.27 0 01.38-.38c.44.44 1.24.68 2.2.68s1.76-.24 2.2-.68z"/></svg>',
+    ph: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1.2 5H9v10h2.2v-3h2c2 0 3.6-1.5 3.6-3.5S15.2 7 13.2 7zm0 5h-2V9h2c.9 0 1.6.6 1.6 1.5S14.1 12 13.2 12z"/></svg>',
+    hn: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M11 13.7L7.4 7h1.9L12 11.5 14.7 7h1.9L13 13.7V17h-2z"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.5 2.4 15 0 18M12 3c-2.4 2.5-2.4 15 0 18"/></svg>',
+  };
+  const ICON_OF = { search_github: "github", search_reddit: "reddit",
+    search_product_hunt: "ph", search_hn: "hn" };
+  const sourceIcon = (src) => SRC_ICON[ICON_OF[src] || "globe"];
+
+  const stripWww = (d) => String(d || "").replace(/^www\./, "");
+  function domainOf(url) { try { return stripWww(new URL(url).hostname); } catch { return ""; } }
+  // neutral-circle fallback when a favicon fails to load
+  window.bsFavErr = function (img) {
+    const s = document.createElement("span");
+    s.style.cssText = "width:16px; height:16px; flex:none; border-radius:50%; background:rgba(255,255,255,0.14); display:inline-block;";
+    img.replaceWith(s);
+  };
+
+  function SearchResultCard(props) {
+    let { source, query, status = "pending", results = [], count = null } = props;
+    const root = document.createElement("div");
+    root.style.margin = "20px 0 0"; // 20px vertical rhythm between blocks
+
+    const iconSpan = (color) =>
+      `<span style="width:14px; height:14px; flex:none; display:inline-flex; align-items:center; justify-content:center; color:${color};">${sourceIcon(source)}</span>`;
+
+    function countLabel() {
+      if (status === "pending") return '<span class="bs-spinner" style="width:14px; height:14px;"></span>';
+      if (!count) return '<span style="font-size:13px; color:rgba(255,255,255,0.45);">nothing new</span>';
+      return `<span style="font-size:13px; color:rgba(255,255,255,0.45); font-variant-numeric:tabular-nums; white-space:nowrap;">${count} result${count === 1 ? "" : "s"}</span>`;
+    }
+    function headerHtml() {
+      return `<div style="display:flex; align-items:center; gap:9px;">
+        ${iconSpan("rgba(255,255,255,0.6)")}
+        <span style="flex:1; min-width:0; font-size:15px; color:rgba(255,255,255,0.85); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(query || "")}</span>
+        <span style="flex:none;">${countLabel()}</span>
+      </div>`;
+    }
+    function rowHtml(r) {
+      const url = r.url || "";
+      const domain = domainOf(url) || stripWww(r.domain || "");
+      const title = r.title || domain || url;
+      const fav = domain
+        ? `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64" width="16" height="16" alt="" onerror="bsFavErr(this)" style="width:16px; height:16px; flex:none; border-radius:4px;" />`
+        : '<span style="width:16px; height:16px; flex:none; border-radius:50%; background:rgba(255,255,255,0.14); display:inline-block;"></span>';
+      return `<div class="bs-srrow" data-url="${esc(url)}" style="height:52px; display:flex; align-items:center; gap:10px; padding:0 8px; border-radius:8px; ${isUrl(url) ? "cursor:pointer;" : ""} transition:background 120ms ease;">
+        ${fav}
+        <span style="flex:1; min-width:0; font-size:14px; color:rgba(255,255,255,0.9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(title)}</span>
+        <span style="flex:none; font-size:13px; color:rgba(255,255,255,0.4); white-space:nowrap;">${esc(domain)}</span>
+      </div>`;
+    }
+    function cardHtml() {
+      const overflow = results.length * 52 > 240;
+      const mask = overflow
+        ? "-webkit-mask-image:linear-gradient(180deg,#000 0%,#000 78%,transparent 100%); mask-image:linear-gradient(180deg,#000 0%,#000 78%,transparent 100%);"
+        : "";
+      const card = `<div class="bs-srcard-box" style="margin-top:8px; background:rgba(255,255,255,0.035); border-radius:12px; padding:6px 8px; max-height:240px; overflow:hidden; ${mask}">${results.map(rowHtml).join("")}</div>`;
+      const showAll = overflow
+        ? `<button class="bs-showall" type="button" style="margin-top:6px; background:none; border:none; padding:2px 0; font-family:inherit; font-size:13px; color:rgba(255,255,255,0.55); transition:color 120ms ease;">Show all ${results.length}</button>`
+        : "";
+      return card + showAll;
+    }
+
+    function render() {
+      if (status === "failed") {
+        // failed search: a single muted amber line, no card
+        root.innerHTML = `<div style="margin:20px 0 0; display:flex; align-items:center; gap:9px; color:#e8b04b; font-size:13.5px;">
+          ${iconSpan("#e8b04b")}
+          <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(query || "Search")} failed${props.message ? " · " + esc(props.message) : ""}</span>
+        </div>`;
+        root.style.margin = "0";
+        return;
+      }
+      // Render the card only when we actually have result objects and hits.
+      // Counts-without-results (the live stream) and "nothing new" stay header-only.
+      const showCard = status !== "pending" && Array.isArray(results) && results.length > 0 && count !== 0;
+      root.innerHTML = headerHtml() + (showCard ? cardHtml() : "");
+      if (showCard) wire();
+    }
+    function wire() {
+      root.querySelectorAll(".bs-srrow").forEach((row) => {
+        const url = row.getAttribute("data-url");
+        if (isUrl(url)) row.addEventListener("click", () => window.open(url, "_blank", "noopener"));
+      });
+      const showAll = root.querySelector(".bs-showall");
+      if (showAll) showAll.addEventListener("click", () => {
+        const box = root.querySelector(".bs-srcard-box");
+        box.style.maxHeight = "none";
+        box.style.webkitMaskImage = "none";
+        box.style.maskImage = "none";
+        showAll.remove();
+      });
+    }
+
+    root._settle = function (o) {
+      status = "done";
+      count = o.count == null ? 0 : o.count;
+      if (Array.isArray(o.results)) results = o.results;
+      render();
+      scrollToNewest();
+    };
+    root._fail = function (message) { status = "failed"; props.message = message; render(); };
+
+    render();
+    return root;
+  }
+
+  // A single muted amber line (retries, source-level failures) — no card.
+  function mutedLine(text) {
+    return appendNode(Object.assign(document.createElement("div"), {
+      innerHTML: `<div style="display:flex; align-items:center; gap:9px; color:#e8b04b; font-size:13.5px; padding:2px 0;">
+        <span style="width:14px; flex:none; text-align:center;">⟳</span>
+        <span style="flex:1; min-width:0; overflow-wrap:anywhere;">${esc(text)}</span></div>`,
+    }).firstElementChild);
+  }
+
+  let lastAct = null; // the currently-spinning activity row, settled when done
+  let lastCard = null; // the currently-pending search block, settled on results
   function onEvent(e) {
     switch (e.type) {
       case "start":
         $("bs-runidea").textContent = e.idea; setPhase(0); break;
       case "expansion_start":
-        phaseRow("expanding the idea"); break;
+        sectionRow("Understanding your idea"); break;
       case "expansion_done":
-        logRow({ t: tsNow(), tag: "plan", m: e.queries.length + " queries drafted" }); break;
+        actRow({ text: `Broke your idea into ${e.queries.length} search angles`, done: true }); break;
       case "expansion_fallback":
-        logRow({ t: tsNow(), tag: "plan", k: "w", m: "expansion failed, using raw idea" }); break;
+        actRow({ text: "Searching your idea as-is", done: true, tone: "w" }); break;
       case "iteration":
-        if (e.iteration === 1) { setPhase(1); phaseRow("sweeping the sources"); }
-        else if (e.iteration === 2) { setPhase(2); phaseRow("chasing evidence"); }
+        if (e.iteration === 1) { setPhase(1); sectionRow("Searching the platforms"); }
+        else if (e.iteration === 2) { setPhase(2); sectionRow("Chasing the evidence"); }
         break;
       case "budget_exhausted":
-        setPhase(3); phaseRow("scoring the field");
-        logRow({ t: tsNow(), tag: "sys", k: "w", m: "budget reached (" + e.reason + "), wrapping up" }); break;
+        setPhase(3); sectionRow("Scoring the field");
+        actRow({ text: "Reached the search budget, wrapping up", done: true, tone: "w" }); break;
       case "tool_call": {
-        const node = logRow({ t: tsNow(), tag: tagOf(e.tool), m: e.query });
-        lastResultSpan = node.querySelector(".bs-res");
+        lastCard = SearchResultCard({ source: e.tool, query: e.query, status: "pending" });
+        appendNode(lastCard);
         break;
       }
-      case "tool_results":
+      case "tool_results": {
         hits += e.count || 0; $("bs-hits").textContent = hits;
-        if (lastResultSpan) { lastResultSpan.textContent = "→ " + e.count + " results"; lastResultSpan = null; }
-        else logRow({ t: "", tag: "", k: "o", r: "→ " + e.count + " results" });
+        if (lastCard) { lastCard._settle({ count: e.count || 0, results: e.results || [] }); lastCard = null; }
         break;
+      }
       case "tool_error":
-        logRow({ t: tsNow(), tag: tagOf(e.tool), k: "w", m: "failed: " + e.message }); break;
+        if (lastCard) { lastCard._fail(e.message); lastCard = null; }
+        else mutedLine(`${cap(srcOf(e.tool))} search failed`);
+        break;
       case "retry":
-        logRow({ t: tsNow(), tag: "sys", k: "w", m: e.label + " retry " + e.attempt + "/" + e.attempts }); break;
+        mutedLine(`Retrying ${e.label} (${e.attempt}/${e.attempts})`); break;
       case "report":
-        setPhase(3); logRow({ t: tsNow(), tag: "sys", k: "o", r: "report ready" }); break;
+        setPhase(3); actRow({ text: "Report ready", done: true }); break;
     }
   }
 
@@ -300,7 +481,7 @@
     const cost = typeof stats.cost === "number" ? "~$" + stats.cost.toFixed(2) : "";
     const tokens = (stats.inputTokens + stats.outputTokens).toLocaleString();
 
-    const fullLog = allRows.join("");
+    const fullLog = $("bs-log").innerHTML; // live DOM = rows in their settled state
 
     $("screen-report").innerHTML = `
       <div>
@@ -396,7 +577,8 @@
     if (!idea || !code) return;
 
     // reset run state
-    $("bs-log").innerHTML = ""; allRows.length = 0; lastResultSpan = null;
+    $("bs-log").innerHTML = ""; allRows.length = 0; lastResultSpan = null; lastAct = null; lastCard = null;
+    autoScroll = true;
     phaseIdx = -1; finished = false; hits = 0;
     $("bs-hits").textContent = "0"; $("bs-cands").textContent = "–";
     $("bs-runidea").textContent = idea;
