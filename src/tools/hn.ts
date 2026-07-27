@@ -76,7 +76,16 @@ export function hnSearchTool(): SourceTool {
       });
 
       const hits = response.hits ?? [];
-      emit({ type: "tool_results", tool: "search_hn", query, count: hits.length });
+      emit({
+        type: "tool_results",
+        tool: "search_hn",
+        query,
+        count: hits.length,
+        results: hits.map((hit) => ({
+          title: hit.title ?? "(untitled)",
+          url: hit.url ?? `https://news.ycombinator.com/item?id=${hit.objectID}`,
+        })),
+      });
 
       if (hits.length === 0) {
         return "No HN results for this query. Try different keywords.";

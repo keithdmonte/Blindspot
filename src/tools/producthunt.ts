@@ -212,7 +212,16 @@ export function productHuntTool(phToken: string, tavilyApiKey?: string): SourceT
         ? await searchViaTavily(phToken, tavilyApiKey, query, emit)
         : (await searchViaTopics(phToken, query, emit)).map(formatPost);
 
-      emit({ type: "tool_results", tool: "search_product_hunt", query, count: entries.length });
+      // entries are formatted strings ("name — tagline\nProduct Hunt: <url> …");
+      // recover a title/url ref for the live cards without reshaping the formatters.
+      const results = entries
+        .map((entry) => {
+          const title = entry.split("\n")[0].split(" — ")[0].trim();
+          const m = entry.match(/Product Hunt:\s*(https?:\/\/[^\s(]+)/);
+          return m ? { title, url: m[1] } : null;
+        })
+        .filter((r): r is { title: string; url: string } => r !== null);
+      emit({ type: "tool_results", tool: "search_product_hunt", query, count: entries.length, results });
 
       if (entries.length === 0) {
         return "No Product Hunt results for this query. Try different keywords.";

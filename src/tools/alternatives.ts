@@ -177,6 +177,10 @@ export function alternativesTool(tavilyApiKey?: string): SourceTool {
         tool: "search_alternatives",
         query: product,
         count: alternatives.length,
+        results: alternatives.map((alt) => ({
+          title: alt.name,
+          url: `https://www.saashub.com/${alt.slug}`,
+        })),
       });
 
       if (alternatives.length === 0) {

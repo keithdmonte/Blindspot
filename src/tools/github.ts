@@ -61,7 +61,13 @@ export function githubSearchTool(token?: string): SourceTool {
       });
 
       const repos = response.items ?? [];
-      emit({ type: "tool_results", tool: "search_github", query, count: repos.length });
+      emit({
+        type: "tool_results",
+        tool: "search_github",
+        query,
+        count: repos.length,
+        results: repos.map((repo) => ({ title: repo.full_name, url: repo.html_url })),
+      });
 
       if (repos.length === 0) {
         return "No GitHub results for this query. Try different keywords.";

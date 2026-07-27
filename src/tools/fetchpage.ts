@@ -47,7 +47,13 @@ export function fetchPageTool(tavilyApiKey: string): SourceTool {
       });
 
       const result = response.results?.[0];
-      emit({ type: "tool_results", tool: "fetch_page", query: url, count: result ? 1 : 0 });
+      emit({
+        type: "tool_results",
+        tool: "fetch_page",
+        query: url,
+        count: result ? 1 : 0,
+        results: result ? [{ title: url, url: result.url }] : [],
+      });
 
       if (!result) {
         const reason = response.failed_results?.[0]?.error ?? "page could not be extracted";
