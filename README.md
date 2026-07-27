@@ -46,12 +46,28 @@ A run prints the expanded query set, live search progress, then a plain-text rep
 The same engine runs in the browser so a non-CLI user can validate an idea and watch it stream.
 
 ```bash
-# needs ANTHROPIC_API_KEY in .env. No auth gate — this is local-only; add a
-# spend guard (password / rate limit / per-run cap) before any public deploy,
-# since each run spends Anthropic credits.
+# needs ANTHROPIC_API_KEY in .env.
 npm run serve                        # http://localhost:3000
 ```
 
 Enter the idea, and the run streams live over a single NDJSON response — phase chips (expand → sweep → chase → score) and a timestamped log — then renders a report: a verdict block (colored by taken / crowded / open lane, with confidence), competitor cards (overlap + obscurity flags), gap cards, and a source-coverage table.
 
 The report is **structured data**, not prose: the agent ends every run by calling a `submit_report` tool whose fields (`competitors[]`, `gaps[]`, `coverage[]`, verdict + confidence) the CLI and web UI both render — see `src/report.ts`. No database yet — saved runs/history land in the next phase ([ROADMAP.md](ROADMAP.md) Phase 5).
+
+## Deploy
+
+The web app is production-ready and platform-agnostic — no build step, one long-lived streaming endpoint.
+
+- **Start:** `npm start` (runs `src/server.ts` via `tsx`, a runtime dependency). Binds `0.0.0.0` on `$PORT` (injected by the host; defaults to 3000).
+- **Health check:** `GET /health` → `{"ok":true}`.
+- **Node:** `>=20` (see `engines`).
+- **Auth is env-driven.** Leave `APP_PASSWORD` unset and the app is open (fine for localhost). **Set `APP_PASSWORD` and every `/run` is gated** — the front-end reads `GET /config` and shows the access-code field automatically. Set it before exposing a public URL, since each run spends Anthropic credits.
+
+Recommended host: **Railway / Render** (Vercel/Netlify won't work — serverless timeouts kill the minute-long streams). Steps:
+
+1. New project → deploy from the GitHub repo.
+2. Set env vars (see [`.env.example`](.env.example)): `ANTHROPIC_API_KEY` (required), `APP_PASSWORD` (set it), `TAVILY_API_KEY` + `GITHUB_TOKEN` (recommended).
+3. Start command `npm start`, health-check path `/health`.
+4. Deploy, generate a domain, run one validation end-to-end to confirm the stream arrives live.
+
+Also cap spend on the Anthropic key itself (console budget limit) as a backstop.

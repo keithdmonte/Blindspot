@@ -8,12 +8,15 @@
  *
  * Run: npm run serve   (needs ANTHROPIC_API_KEY in .env)
  *
- * No auth gate — local-only. Add a spend guard before any public deploy.
+ * Auth is optional and env-driven: set APP_PASSWORD and every /run is gated;
+ * leave it unset (local dev) and the app is open. So the same build runs
+ * open on localhost and gated in production just by setting one env var.
  */
 import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import Anthropic from "@anthropic-ai/sdk";
 import type { DiscoveryEvent } from "./events.js";
@@ -38,9 +41,30 @@ const productHuntToken = process.env.PRODUCTHUNT_API_TOKEN;
 const githubToken = process.env.GITHUB_TOKEN;
 const port = Number(process.env.PORT ?? 3000);
 
-// NOTE: no auth gate yet — this app is local-only. Before deploying to a public
-// URL, add a spend guard (password, rate limit, or per-run cap): each /run call
-// spends Anthropic credits, so an open endpoint drains the wallet.
+// Optional spend gate. When APP_PASSWORD is set, /run demands it — set this
+// before exposing a public URL, since every run spends Anthropic credits.
+const appPassword = process.env.APP_PASSWORD;
+const authRequired = Boolean(appPassword);
+if (!authRequired) {
+  console.warn(
+    "APP_PASSWORD not set — /run is OPEN. Fine for localhost; set it before " +
+      "deploying to a public URL so an open endpoint can't drain the wallet.",
+  );
+}
+
+/** Constant-time password check so we don't leak length/prefix via timing. */
+function passwordOk(supplied: unknown): boolean {
+  if (typeof supplied !== "string") return false;
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(appPassword as string);
+  // timingSafeEqual throws on length mismatch, so guard it — but still run a
+  // comparison against a fixed buffer to keep timing roughly constant.
+  if (a.length !== b.length) {
+    timingSafeEqual(b, b);
+    return false;
+  }
+  return timingSafeEqual(a, b);
+}
 
 // Map raw errors to short, user-safe messages. Raw API bodies (credit balance,
 // request ids, auth details) must never reach the browser.
@@ -79,12 +103,21 @@ app.get("/", async (_req, reply) => {
 
 app.get("/health", async () => ({ ok: true }));
 
+// Lets the front-end know whether to show the password field.
+app.get("/config", async () => ({ authRequired }));
+
 interface RunBody {
   idea?: unknown;
+  password?: unknown;
 }
 
 app.post("/run", async (req, reply) => {
   const body = (req.body ?? {}) as RunBody;
+
+  if (authRequired && !passwordOk(body.password)) {
+    reply.code(401).send({ error: "Wrong password." });
+    return;
+  }
 
   const idea = typeof body.idea === "string" ? body.idea.trim() : "";
   if (!idea) {
