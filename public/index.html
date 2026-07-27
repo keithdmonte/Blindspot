@@ -96,7 +96,7 @@
       <div style="flex: 1;"></div>
       <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">hits <span id="bs-hits">0</span> · candidates <span id="bs-cands">–</span></span>
     </div>
-    <div id="bs-log" style="margin-top: 8px; min-height: 140px; font-size: 14px;"></div>
+    <div id="bs-log" class="bs-log" style="margin-top: 14px; min-height: 140px; max-height: 52vh; overflow-y: auto; font-size: 14px; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.02); border-radius: 14px; padding: 6px 16px 14px; box-sizing: border-box;"></div>
     <div style="margin-top: 16px; display: flex; align-items: center; gap: 12px;">
       <button id="bs-stop" class="bs-ghost" style="min-height: 44px; padding: 0 20px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03); color: #f5f5f4; font-weight: 600; font-size: 13.5px; font-family: inherit; transition: border-color 150ms ease, background 150ms ease;">Stop the run</button>
     </div>
@@ -130,6 +130,11 @@
     adjacent: { label: "adjacent", color: "#6f6f77" },
   };
   const CONF = { high: "#5ec269", medium: "#9d9da6", low: "#e8b04b", thin: "#e8b04b" };
+  const LIVENESS = {
+    active: { label: "active", color: "#5ec269" },
+    stale:  { label: "stale",  color: "#e8b04b" },
+    dead:   { label: "dead",   color: "#e5695c" },
+  };
 
   // ---- source pills -------------------------------------------------------
   $("bs-sources").innerHTML = SOURCES.map((s) =>
@@ -213,21 +218,21 @@
     return node;
   }
 
-  // ---- auto-scroll (page scrolls, not a fixed box) ------------------------
+  // ---- auto-scroll (inside the log box, not the page) ---------------------
   // Follow the newest block while running; stand down the moment the user
-  // scrolls up, and pick back up once they return to the bottom.
+  // scrolls up inside the box, and pick back up once they return to its bottom.
   let autoScroll = true;
   function scrollToNewest() {
-    if (!autoScroll || $("screen-running").classList.contains("hidden")) return;
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+    const box = $("bs-log");
+    if (!autoScroll || !box || $("screen-running").classList.contains("hidden")) return;
+    box.scrollTo({ top: box.scrollHeight, behavior: "smooth" });
   }
-  const nearPageBottom = () =>
-    window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80;
-  window.addEventListener("wheel", (e) => { if (e.deltaY < -2) autoScroll = false; }, { passive: true });
-  window.addEventListener("keydown", (e) => {
-    if (["ArrowUp", "PageUp", "Home"].includes(e.key)) autoScroll = false;
-  });
-  window.addEventListener("scroll", () => { if (nearPageBottom()) autoScroll = true; }, { passive: true });
+  const nearBoxBottom = () => {
+    const box = $("bs-log");
+    return !box || box.scrollHeight - box.scrollTop - box.clientHeight <= 80;
+  };
+  $("bs-log").addEventListener("wheel", (e) => { if (e.deltaY < -2) autoScroll = false; }, { passive: true });
+  $("bs-log").addEventListener("scroll", () => { autoScroll = nearBoxBottom(); }, { passive: true });
 
   // ---- SearchResultCard ---------------------------------------------------
   // Grouped search block: a header line (icon + query + result count) with an
@@ -287,15 +292,10 @@
       </div>`;
     }
     function cardHtml() {
-      const overflow = results.length * 52 > 240;
-      const mask = overflow
-        ? "-webkit-mask-image:linear-gradient(180deg,#000 0%,#000 78%,transparent 100%); mask-image:linear-gradient(180deg,#000 0%,#000 78%,transparent 100%);"
-        : "";
-      const card = `<div class="bs-srcard-box" style="margin-top:8px; background:rgba(255,255,255,0.035); border-radius:12px; padding:6px 8px; max-height:240px; overflow:hidden; ${mask}">${results.map(rowHtml).join("")}</div>`;
-      const showAll = overflow
-        ? `<button class="bs-showall" type="button" style="margin-top:6px; background:none; border:none; padding:2px 0; font-family:inherit; font-size:13px; color:rgba(255,255,255,0.55); transition:color 120ms ease;">Show all ${results.length}</button>`
-        : "";
-      return card + showAll;
+      // No inner box: rows flow straight into the single scrollable log panel
+      // (Claude-style). The outer #bs-log handles scroll, so no per-card
+      // max-height / fade / "Show all" — every hit is reachable by scrolling.
+      return `<div class="bs-srcard-box" style="margin-top:4px; padding-left:23px;">${results.map(rowHtml).join("")}</div>`;
     }
 
     function render() {
@@ -425,9 +425,12 @@
     const comps = r.competitors || [], gaps = r.gaps || [], cov = r.coverage || [];
     const kept = comps.length;
     const obscureN = comps.filter((c) => c.obscure).length;
+    const deadN = comps.filter((c) => c.alive === "dead").length;
+    const livingN = kept - deadN;
 
     const compCards = comps.map((c) => {
       const ov = OVERLAP[c.overlap] || OVERLAP.partial;
+      const lv = LIVENESS[c.alive]; // undefined for "unknown" → no pill
       const initials = (c.name || "?")[0].toUpperCase();
       const links = [];
       if (isUrl(c.url)) links.push(link("site", c.url));
@@ -440,12 +443,17 @@
       if (c.positioning && c.positioning !== "unknown") metaItems.push(`<span style="color:#9d9da6;">for ${esc(c.positioning)}</span>`);
       if (c.funding) metaItems.push(`<span style="color:#9d9da6;">funding ${esc(c.funding)}</span>`);
       const meta = metaItems.join('<span style="color:#4a4a50;">·</span>');
-      return `<div class="bs-comp" style="background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 9px; transition: border-color 200ms ease-out, box-shadow 200ms ease-out, transform 200ms ease-out;">
-        <div style="display: flex; align-items: center; gap: 10px;">
+      const livePill = lv ? `<span style="display: inline-flex; align-items: center; gap: 5px; border: 1px solid ${lv.color}55; color: ${lv.color}; background: ${lv.color}14; border-radius: 9999px; padding: 1px 9px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em;">● ${lv.label}</span>` : "";
+      const sourceChip = c.sourceCount > 1 ? `<span style="font-size: 10.5px; color: #6f6f77; font-weight: 600; letter-spacing: 0.03em;">seen in ${c.sourceCount} sources</span>` : "";
+      const activeLine = c.lastActive ? `last active ${esc(c.lastActive)}` : (c.alive === "dead" ? "looks inactive" : "");
+      return `<div class="bs-comp" data-alive="${esc(c.alive)}" style="background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 9px; transition: border-color 200ms ease-out, box-shadow 200ms ease-out, transform 200ms ease-out;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
           <span style="width: 30px; height: 30px; flex: none; border-radius: 8px; background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04)); border: 1px solid rgba(255,255,255,0.12); display: inline-flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; color: #f5f5f4;">${esc(initials)}</span>
           <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.01em; font-size: 16.5px; color: #f5f5f4;">${esc(c.name)}</span>
+          ${livePill}
           ${c.obscure ? '<span style="display: inline-flex; align-items: center; border: 1px solid rgba(216,179,106,0.4); color: #d8b36a; background: rgba(216,179,106,0.08); border-radius: 9999px; padding: 1px 9px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em;">◆ obscure</span>' : ""}
         </div>
+        ${activeLine || sourceChip ? `<div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: #6f6f77;">${activeLine ? `<span>${activeLine}</span>` : ""}${activeLine && sourceChip ? '<span style="color: #4a4a50;">·</span>' : ""}${sourceChip}</div>` : ""}
         <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #9d9da6; text-wrap: pretty;">${esc(c.what)}</p>
         <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-top: 2px;">
           <span style="font-weight: 600; color: ${ov.color};">${ov.label}</span>
@@ -494,7 +502,7 @@
         <h2 style="margin: 20px 0 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.035em; font-size: clamp(36px, 5.2vw, 50px); line-height: 1.04; text-wrap: balance;"><span style="color: ${v.color}; text-shadow: 0 0 48px ${mix(35)};">${esc(v.lead)}</span> <span style="color: #f5f5f4;">${esc(v.rest)}</span></h2>
         <div style="margin-top: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
           <span style="display: inline-flex; align-items: center; border: 1px solid ${mix(40)}; color: ${v.color}; background: ${mix(10)}; border-radius: 9999px; padding: 5px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;">${esc(r.verdict)}</span>
-          <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">Confidence ${r.confidence.toFixed(2)} · recommendation ${esc(r.recommendation)} · ${kept} competitors</span>
+          <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">Confidence ${r.confidence.toFixed(2)} · recommendation ${esc(r.recommendation)} · ${deadN ? `${kept} found · <span style="color:#e5695c;">${deadN} dead</span> · ${livingN} living` : `${kept} competitors`}</span>
         </div>
         <p style="margin: 16px 0 0; max-width: 660px; font-size: 15.5px; line-height: 1.7; color: #c9c9cf; text-wrap: pretty;">${esc(r.verdictWhy)}</p>
       </div>
@@ -502,8 +510,9 @@
       <div style="margin-top: 56px;">
         <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08);">
           <h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 22px; color: #f5f5f4;">Competitors</h3>
-          <span style="font-size: 13px; color: #6f6f77;">${kept} found</span>
+          <span class="bs-compcount" style="font-size: 13px; color: #6f6f77;">${kept} found</span>
           <div style="flex: 1;"></div>
+          ${deadN ? `<button class="bs-hidedead" data-hidden="0" style="min-height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(229,105,92,0.4); background: rgba(229,105,92,0.08); color: #e5695c; font-weight: 600; font-size: 12px; font-family: inherit; cursor: pointer; transition: border-color 150ms ease;">Hide dead (${deadN})</button>` : ""}
           ${obscureN ? '<span style="font-size: 12px; color: #9d9da6;"><span style="color: #d8b36a;">◆</span> surfaced only by deep search</span>' : ""}
         </div>
         <div style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px;">
@@ -549,6 +558,15 @@
       </div>`;
 
     $("screen-report").querySelectorAll(".bs-newidea").forEach((b) => b.addEventListener("click", reset));
+    const hideBtn = $("screen-report").querySelector(".bs-hidedead");
+    if (hideBtn) hideBtn.addEventListener("click", () => {
+      const next = hideBtn.dataset.hidden !== "1";
+      $("screen-report").querySelectorAll('.bs-comp[data-alive="dead"]').forEach((el) => { el.style.display = next ? "none" : ""; });
+      hideBtn.dataset.hidden = next ? "1" : "0";
+      hideBtn.textContent = next ? `Show dead (${deadN})` : `Hide dead (${deadN})`;
+      const countEl = $("screen-report").querySelector(".bs-compcount");
+      if (countEl) countEl.textContent = next ? `${livingN} living` : `${kept} found`;
+    });
     const toggle = $("screen-report").querySelector(".bs-togglelog");
     const full = $("screen-report").querySelector(".bs-fulllog");
     toggle.addEventListener("click", () => {

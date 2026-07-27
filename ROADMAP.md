@@ -52,6 +52,19 @@ Short and current beats long and stale. Phases, not dates. Each phase has a "don
 
 **Done when:** a non-CLI user can run a validation and share the result.
 
+## Phase 6 — Liveness & the Pivot Finder
+
+Move from a **directory** ("who exists") to a **decision** ("this lane is dead-crowded; *this* adjacent one is open"). Full on-screen spec in [PHASE6.md](PHASE6.md).
+
+- **Liveness** — every competitor tagged Active / Stale / Dead / Unknown from dated signals already returned (GitHub last push, PH/HN dates, dead-domain check). A **Hide dead** toggle collapses a fake-crowded market to its living players; the summary recomputes. This is the moment Blindspot beats a Google search — it shows the corpse *and* says it's a corpse.
+- **Honest count** — the same product arriving from HN + PH + GitHub is merged into one entry with a `seen in N sources` corroboration chip, sortable. No more double-counting inflating the verdict.
+- **Wider net** — two new sources: review sites (G2 / Capterra — enumerate a category + 2-star reviews are gap fuel) and the YC directory (funded-but-obscure startups PH misses).
+- **Closest open lane (pivot finder)** — when a verdict is crowded/taken, ship 2–3 nearby ideas that are *more* open, each grounded in a real gap found this run, with nearest competitor and a near/far pivot tag. Never leave the user at a dead end. Reuses the adjacent-categories already produced by query expansion.
+
+**Order:** liveness + honest count first (zero new API keys, biggest "not just a list" jump) → new sources → pivot finder.
+
+**Done when:** every competitor carries a grounded liveness status and source count, *Hide dead* works, duplicates are merged, and a crowded/taken verdict always ships with a grounded adjacent-idea card (or an honest "no adjacent opening found").
+
 ## Not planned
 
 - Market sizing / TAM estimates

@@ -46,6 +46,16 @@ A product idea in plain language. One sentence to a paragraph. Example: *"a tool
 - Sources checked + coverage confidence
 - Fields where data was thin
 
+### 6. Liveness *(Phase 6 — see [PHASE6.md](PHASE6.md))*
+- Each competitor tagged **Active / Stale / Dead / Unknown** from the freshest dated signal found (GitHub last push, launch date, dead-domain check) — with the evidence shown
+- **Seen in N sources** corroboration count per competitor (same product merged across sources, not double-counted)
+- **Hide dead** toggle; the crowded count and summary recompute to living players only
+
+### 7. Closest open lane *(Phase 6 — see [PHASE6.md](PHASE6.md))*
+- When crowded/taken: 2–3 nearby ideas that are more open, each grounded in a gap found this run — with the gap it exploits, the nearest competitor, and a near/far pivot tag
+- When already open: reframed as adjacent lanes the user could also own
+- Hard rule (inherits from Gaps): every "why open" claim traces to a source from the run, or it doesn't ship
+
 ## ✅ v1 SCOPE CUT — CONFIRMED 2026-07-21
 
 ### IN for v1

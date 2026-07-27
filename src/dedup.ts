@@ -1,0 +1,138 @@
+/**
+ * Deterministic backstop on the model's own de-duping, plus the liveness
+ * bucketing (Phase 6 — see PHASE6.md). The model dedups implicitly, but the
+ * same product routinely arrives from HN + Product Hunt + GitHub under
+ * slightly different names and URLs; merging by domain here keeps the
+ * competitor count honest, and a merge that finds a fresher date recomputes
+ * the liveness label so it never lags behind the evidence.
+ */
+import type { Competitor, Liveness, Overlap } from "./report.js";
+import { ALIVE_MONTHS, STALE_MONTHS } from "./config.js";
+
+const LIVENESS = new Set<Liveness>(["active", "stale", "dead", "unknown"]);
+const OVERLAP_RANK: Record<Overlap, number> = { direct: 3, partial: 2, adjacent: 1 };
+
+/** Parse ISO-ish YYYY / YYYY-MM / YYYY-MM-DD into a Date, else null. */
+function parseIsoish(value: string): Date | null {
+  const m = value.trim().match(/^(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = m[2] ? Number(m[2]) - 1 : 0;
+  const day = m[3] ? Number(m[3]) : 1;
+  const d = new Date(year, month, day);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Whole months from `then` to now (never negative). */
+function monthsSince(then: Date): number {
+  const now = new Date();
+  const months = (now.getFullYear() - then.getFullYear()) * 12 + (now.getMonth() - then.getMonth());
+  return Math.max(0, months);
+}
+
+/** Bucket a dated signal into a liveness label, or null if it doesn't parse. */
+export function deriveAlive(lastActive?: string): Liveness | null {
+  if (!lastActive) return null;
+  const d = parseIsoish(lastActive);
+  if (!d) return null;
+  const months = monthsSince(d);
+  if (months <= ALIVE_MONTHS) return "active";
+  if (months <= STALE_MONTHS) return "stale";
+  return "dead";
+}
+
+/**
+ * Settle the liveness label: a parseable date is authoritative (it beats a
+ * model-set label that lags the evidence); otherwise trust the model's label
+ * (it carries the dead-domain case, which has no date); otherwise "unknown".
+ */
+export function normalizeLiveness(aliveRaw: unknown, lastActiveRaw: unknown): Liveness {
+  const fromDate = deriveAlive(typeof lastActiveRaw === "string" ? lastActiveRaw : undefined);
+  if (fromDate) return fromDate;
+  if (typeof aliveRaw === "string" && LIVENESS.has(aliveRaw as Liveness)) return aliveRaw as Liveness;
+  return "unknown";
+}
+
+/** Registrable-ish key for a competitor: its domain, else its lowercased name. */
+function keyOf(c: Competitor): string {
+  const url = (c.url || "").trim().toLowerCase();
+  if (url && url !== "unknown") {
+    const domain = url
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .split(/[/:?#]/)[0];
+    if (domain) return domain;
+  }
+  return c.name.trim().toLowerCase();
+}
+
+/** Prefer the longer, non-"unknown" value between two text fields. */
+function richer(a: string, b: string): string {
+  const aOk = a && a !== "unknown";
+  const bOk = b && b !== "unknown";
+  if (aOk && bOk) return a.length >= b.length ? a : b;
+  return aOk ? a : bOk ? b : a;
+}
+
+/** Freshest of two ISO-ish dates (undefined-safe). */
+function fresher(a?: string, b?: string): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  const da = parseIsoish(a);
+  const db = parseIsoish(b);
+  if (!da) return b;
+  if (!db) return a;
+  return da >= db ? a : b;
+}
+
+/**
+ * Merge competitors that resolve to the same product. Preserves first-seen
+ * order; for each duplicate it unions evidence, keeps the strongest overlap,
+ * the richest text, the freshest date and the highest source count, then
+ * recomputes liveness from the merged date.
+ */
+export function mergeCompetitors(list: Competitor[]): Competitor[] {
+  const byKey = new Map<string, Competitor>();
+  // How many raw entries collapsed into each key, and the highest source count
+  // the model itself claimed. The final corroboration count is the larger of
+  // the two: if the model already merged (one entry, sourceCount 3) we keep 3;
+  // if it left duplicates (two entries, each 1) the collapse floor lifts it to 2.
+  const collapsed = new Map<string, number>();
+  const modelMax = new Map<string, number>();
+  const order: string[] = [];
+
+  for (const c of list) {
+    const key = keyOf(c);
+    collapsed.set(key, (collapsed.get(key) ?? 0) + 1);
+    modelMax.set(key, Math.max(modelMax.get(key) ?? 1, c.sourceCount));
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, { ...c });
+      order.push(key);
+      continue;
+    }
+    const lastActive = fresher(existing.lastActive, c.lastActive);
+    const merged: Competitor = {
+      ...existing,
+      url: existing.url && existing.url !== "unknown" ? existing.url : c.url,
+      overlap: OVERLAP_RANK[c.overlap] > OVERLAP_RANK[existing.overlap] ? c.overlap : existing.overlap,
+      obscure: existing.obscure || c.obscure,
+      what: richer(existing.what, c.what),
+      pricing: richer(existing.pricing, c.pricing),
+      positioning: richer(existing.positioning, c.positioning),
+      traction: richer(existing.traction, c.traction),
+      funding: existing.funding ?? c.funding,
+      ...(lastActive ? { lastActive } : {}),
+      sourceCount: existing.sourceCount, // finalized below
+      evidence: [...new Set([...existing.evidence, ...c.evidence])],
+    };
+    merged.alive = normalizeLiveness(merged.alive, merged.lastActive);
+    byKey.set(key, merged);
+  }
+
+  return order.map((key) => {
+    const c = byKey.get(key)!;
+    c.sourceCount = Math.max(collapsed.get(key) ?? 1, modelMax.get(key) ?? 1);
+    return c;
+  });
+}

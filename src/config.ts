@@ -14,6 +14,12 @@ export const MAX_TOKENS = 16000;
  * via the system prompt (the model tracks its own candidate list). */
 export const CANDIDATE_CAP = 25;
 
+/** Liveness buckets (Phase 6). A competitor whose freshest dated signal is
+ * within ALIVE_MONTHS is "active", within STALE_MONTHS is "stale", older is
+ * "dead". No date seen → "unknown". Used to discredit fake-crowded markets. */
+export const ALIVE_MONTHS = 6;
+export const STALE_MONTHS = 18;
+
 /** Query expansion */
 export const EXPANSION_MAX_TOKENS = 1500;
 export const MAX_QUERIES = 12;

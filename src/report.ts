@@ -7,12 +7,14 @@
  * model did not see in a tool result is "unknown", never invented.
  */
 import type Anthropic from "@anthropic-ai/sdk";
+import { mergeCompetitors, normalizeLiveness } from "./dedup.js";
 
 export type Verdict = "taken" | "crowded" | "open lane";
 export type Recommendation = "go" | "caution" | "no-go";
 export type Overlap = "direct" | "partial" | "adjacent";
 export type Confidence = "high" | "medium" | "low" | "thin";
 export type StopCondition = "saturation" | "candidate_cap" | "budget_exhausted";
+export type Liveness = "active" | "stale" | "dead" | "unknown";
 
 export interface Competitor {
   name: string;
@@ -27,6 +29,12 @@ export interface Competitor {
   traction: string;
   /** Only when it surfaced incidentally in a source; else omitted. */
   funding?: string;
+  /** Freshest dated signal seen (ISO YYYY / YYYY-MM / YYYY-MM-DD), else omitted. */
+  lastActive?: string;
+  /** Is it still maintained? Derived from lastActive age, or a dead domain. */
+  alive: Liveness;
+  /** How many distinct sources surfaced this product this run (corroboration). */
+  sourceCount: number;
   evidence: string[];
 }
 
@@ -121,9 +129,22 @@ export const reportTool: Anthropic.Tool = {
             positioning: { type: "string", description: "Who they sell to and how they frame it, else \"unknown\"." },
             traction: { type: "string", description: "Concrete signal: HN points, PH upvotes, stars, launch date, else \"unknown\"." },
             funding: { type: "string", description: "Only if it surfaced incidentally; mark unverified. Omit otherwise." },
+            lastActive: {
+              type: "string",
+              description: "Freshest dated signal you saw for it, as ISO YYYY, YYYY-MM, or YYYY-MM-DD (GitHub last push, PH/HN launch date). Omit if no date was seen.",
+            },
+            alive: {
+              type: "string",
+              enum: ["active", "stale", "dead", "unknown"],
+              description: "active = last signal within 6 months; stale = 6-18 months; dead = older than 18 months or the domain is unreachable; unknown = no date seen.",
+            },
+            sourceCount: {
+              type: "number",
+              description: "How many distinct sources (HN, PH, GitHub, Reddit, etc.) surfaced this same product this run. 1 if only one.",
+            },
             evidence: { type: "array", items: { type: "string" }, description: "URL(s) where you saw this." },
           },
-          required: ["name", "url", "overlap", "obscure", "what", "pricing", "positioning", "traction", "evidence"],
+          required: ["name", "url", "overlap", "obscure", "what", "pricing", "positioning", "traction", "alive", "sourceCount", "evidence"],
         },
       },
       gaps: {
@@ -225,6 +246,9 @@ export function coerceReport(input: unknown): StructuredReport {
       positioning: str(c.positioning),
       traction: str(c.traction),
       ...(typeof c.funding === "string" && c.funding.trim() ? { funding: c.funding } : {}),
+      ...(typeof c.lastActive === "string" && c.lastActive.trim() ? { lastActive: c.lastActive.trim() } : {}),
+      alive: normalizeLiveness(c.alive, c.lastActive),
+      sourceCount: Math.max(1, Math.round(num(c.sourceCount, 1))),
       evidence: arr(c.evidence).filter((e): e is string => typeof e === "string"),
     };
   });
@@ -277,7 +301,7 @@ export function coerceReport(input: unknown): StructuredReport {
     recommendation,
     confidence: Math.max(0, Math.min(1, num(o.confidence, 0.5))),
     verdictWhy,
-    competitors: salvagedComps,
+    competitors: mergeCompetitors(salvagedComps),
     gaps: salvagedGaps,
     coverage: salvagedCov,
     stopCondition,
@@ -339,6 +363,9 @@ export function salvageFromXml(text: string): {
       positioning: tag(b, "positioning") || "unknown",
       traction: tag(b, "traction") || "unknown",
       ...(funding ? { funding } : {}),
+      ...(tag(b, "lastActive") ? { lastActive: tag(b, "lastActive") } : {}),
+      alive: normalizeLiveness(tag(b, "alive"), tag(b, "lastActive")),
+      sourceCount: Math.max(1, Math.round(Number(tag(b, "sourceCount")) || 1)),
       evidence: evidence(b),
     };
   });

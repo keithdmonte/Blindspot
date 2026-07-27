@@ -60,6 +60,29 @@ function passwordOk(supplied: unknown): boolean {
   return timingSafeEqual(a, b);
 }
 
+// Map raw errors to short, user-safe messages. Raw API bodies (credit balance,
+// request ids, auth details) must never reach the browser.
+function friendlyError(err: unknown): string {
+  if (err instanceof Anthropic.APIError) {
+    const status = err.status;
+    const raw = (err.message ?? "").toLowerCase();
+    if (status === 400 && raw.includes("credit balance")) {
+      return "We're temporarily out of credits. Please try again later.";
+    }
+    if (status === 401 || status === 403) {
+      return "Service is misconfigured. Please try again later.";
+    }
+    if (status === 429) {
+      return "Too many requests right now. Please wait a moment and try again.";
+    }
+    if (status && status >= 500) {
+      return "The AI service is having a moment. Please try again shortly.";
+    }
+    return "Something went wrong reaching the AI service. Please try again.";
+  }
+  return "Something went wrong. Please try again.";
+}
+
 // ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
@@ -133,12 +156,8 @@ app.post("/run", async (req, reply) => {
       stoppedBy: result.stoppedBy,
     });
   } catch (err) {
-    const message =
-      err instanceof Anthropic.APIError
-        ? `Anthropic API error (${err.status}): ${err.message}`
-        : err instanceof Error
-          ? err.message
-          : String(err);
+    console.error(err);
+    const message = friendlyError(err);
     send({ type: "fatal", message });
   } finally {
     if (!res.writableEnded) res.end();
