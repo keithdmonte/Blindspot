@@ -49,7 +49,7 @@ Filling submit_report:
   - sourceCount: how many DISTINCT sources (Hacker News, Product Hunt, GitHub, Reddit, alternatives graph, open web) surfaced this same product this run. 1 if only one saw it. A product several sources agree on is stronger — count honestly.
 - gaps: only openings grounded in complaints or coverage you saw, each with evidence URLs. Use the optional stat / statLabel for a headline number (e.g. stat "0/9", statLabel "coverage"). No evidence, no gap.
 - coverage: one row per source you actually used, with how many queries you ran, roughly how many hits, a confidence, and a short note.
-- verdict / recommendation / confidence: based only on what you found. stopCondition: which condition ended the search. thinFields: fields that were mostly unknown across competitors. sources: only URLs you actually relied on.`;
+- verdict / recommendation / confidence: based only on what you found. stopCondition: which condition ended the search. thinFields: fields that were mostly unknown across competitors.`;
 }
 
 export const EXPANSION_PROMPT = `You are preparing search queries to find ALL existing competitors for a product idea — especially small, new, obscure ones that authority-ranked search misses.

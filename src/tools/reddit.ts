@@ -8,7 +8,7 @@
  */
 import type { SourceTool } from "./types.js";
 import { withRetry } from "../util.js";
-import { REDDIT_MAX_RESULTS } from "../config.js";
+import { REDDIT_MAX_RESULTS, FETCH_TIMEOUT_MS } from "../config.js";
 
 interface TavilyResult {
   title: string;
@@ -39,6 +39,7 @@ export function redditTool(tavilyKey: string): SourceTool {
       const { query } = input as { query: string };
       const response = await withRetry(`reddit search "${query}"`, emit, async () => {
         const res = await fetch("https://api.tavily.com/search", {
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -5,7 +5,7 @@
  */
 import type { SourceTool } from "./types.js";
 import { withRetry } from "../util.js";
-import { TAVILY_MAX_RESULTS } from "../config.js";
+import { TAVILY_MAX_RESULTS, FETCH_TIMEOUT_MS } from "../config.js";
 
 interface TavilyResult {
   title: string;
@@ -36,6 +36,7 @@ export function webSearchTool(apiKey: string): SourceTool {
       const { query } = input as { query: string };
       const response = await withRetry(`tavily search "${query}"`, emit, async () => {
         const res = await fetch("https://api.tavily.com/search", {
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
           method: "POST",
           headers: {
             "Content-Type": "application/json",

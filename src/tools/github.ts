@@ -6,7 +6,7 @@
  */
 import type { SourceTool } from "./types.js";
 import { withRetry } from "../util.js";
-import { GITHUB_MAX_RESULTS } from "../config.js";
+import { GITHUB_MAX_RESULTS, FETCH_TIMEOUT_MS } from "../config.js";
 
 const GITHUB_API = "https://api.github.com";
 
@@ -53,7 +53,7 @@ export function githubSearchTool(token?: string): SourceTool {
           "X-GitHub-Api-Version": "2022-11-28",
         };
         if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch(`${GITHUB_API}/search/repositories?${params}`, { headers });
+        const res = await fetch(`${GITHUB_API}/search/repositories?${params}`, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
         if (!res.ok) {
           throw new Error(`GitHub returned ${res.status}: ${await res.text()}`);
         }

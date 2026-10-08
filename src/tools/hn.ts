@@ -5,7 +5,7 @@
  */
 import type { SourceTool } from "./types.js";
 import { withRetry } from "../util.js";
-import { HN_HITS_PER_PAGE } from "../config.js";
+import { HN_HITS_PER_PAGE, FETCH_TIMEOUT_MS } from "../config.js";
 
 const HN_API = "https://hn.algolia.com/api/v1";
 
@@ -68,7 +68,7 @@ export function hnSearchTool(): SourceTool {
       });
 
       const response = await withRetry(`hn search "${query}"`, emit, async () => {
-        const res = await fetch(`${HN_API}/${path}?${params}`);
+        const res = await fetch(`${HN_API}/${path}?${params}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
         if (!res.ok) {
           throw new Error(`HN Algolia returned ${res.status}: ${await res.text()}`);
         }

@@ -13,7 +13,7 @@
  */
 import type { SourceTool } from "./types.js";
 import { withRetry } from "../util.js";
-import { SAASHUB_THROTTLE_MS } from "../config.js";
+import { SAASHUB_THROTTLE_MS, FETCH_TIMEOUT_MS } from "../config.js";
 
 const UA = "BlindspotBot/0.1 (competitor research; contact: dmontekm@gmail.com)";
 
@@ -54,7 +54,7 @@ function slugMatchesProduct(slug: string, product: string): boolean {
 }
 
 async function fetchSaasHubPage(url: string): Promise<string | null> {
-  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`SaaSHub returned ${res.status} for ${url}`);
   return res.text();
@@ -137,6 +137,7 @@ export function alternativesTool(tavilyApiKey?: string): SourceTool {
       if (html === null && tavilyApiKey) {
         const search = await withRetry(`tavily saashub "${product}"`, emit, async () => {
           const res = await fetch("https://api.tavily.com/search", {
+            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
             method: "POST",
             headers: {
               "Content-Type": "application/json",

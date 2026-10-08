@@ -29,7 +29,13 @@ export async function runDiscovery(
 
   // The SDK already retries 429s and 5xx errors with backoff; maxRetries just
   // raises the ceiling. Source API calls get their own retry wrapper.
-  const client = new Anthropic({ apiKey: opts.anthropicApiKey, maxRetries: 3 });
+  // Keys not scoped to a workspace must name one via this header.
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+  const client = new Anthropic({
+    apiKey: opts.anthropicApiKey,
+    maxRetries: 3,
+    defaultHeaders: workspaceId ? { "anthropic-workspace-id": workspaceId } : undefined,
+  });
   const registry = buildToolRegistry({
     tavilyApiKey: opts.tavilyApiKey,
     productHuntToken: opts.productHuntToken,
@@ -51,6 +57,9 @@ export async function runDiscovery(
       candidateCap: CANDIDATE_CAP,
     }),
     firstMessage: buildFirstMessage(idea, queries, discoveryTools),
+    // The first turn is always "every discovery tool × every query" (the
+    // prompt mandates it), so run it directly instead of waiting on the model.
+    seedCalls: discoveryTools.flatMap((name) => queries.map((query) => ({ name, input: { query } }))),
     registry,
     onEvent: emit,
   });
