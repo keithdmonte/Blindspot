@@ -4,19 +4,19 @@ Pick up here. Today's session was about making runs faster without losing report
 
 ## Where things stand
 
-- **Branch:** `parallel-tool-calls` (not pushed, not merged). It's 4 commits on top of `4b355b3`:
+- **Branch:** `parallel-tool-calls` (pushed, not merged). Its commits on top of `4b355b3`:
   - `6ba1683` Support keys not scoped to a workspace (`ANTHROPIC_WORKSPACE_ID` header)
   - `0c723d4` Stop dedup from merging different products on shared hosts
   - `03e901c` Time out stalled source requests so they retry (20s, `FETCH_TIMEOUT_MS`)
   - `6dfa131` Cut run time ~295s to ~160s (parallel tool calls, skipped first model turn, prompt caching, `sources` derived from evidence)
-- **Local `main` was fast-forwarded to `6ba1683` by mistake.** It's local only. To undo it: `git branch -f main 4b355b3` (run while on another branch).
+- **Pushed:** the branch is on GitHub. `main` matches `origin/main` (`4b355b3`), and no PR is open yet.
 - **`.env`:** has `ANTHROPIC_API_KEY` (an unscoped key), `ANTHROPIC_WORKSPACE_ID`, `GITHUB_TOKEN` (fine-grained, public read-only), `TAVILY_API_KEY`, `PRODUCTHUNT_API_TOKEN` and `APP_PASSWORD`.
 - **Port 3000 is taken** by another project (`nexus-fairdrop`), so run Blindspot on 3001.
 
 ## To do (in order)
 
 1. [ ] **Fix the cost estimate.** `src/config.ts` still uses the Sonnet 5 intro price ($2 in / $10 out, valid through 2026-08-31). The rate now is $3 / $15. Separately, `inputTokens` now includes cache reads, so the cost shown is an upper bound. Pricing cache reads at about 0.1× would make it accurate.
-2. [ ] **Decide how the branch lands.** Either open a PR from `parallel-tool-calls`, or merge it into `main`. Fix the accidental `main` fast-forward first (see above).
+2. [ ] **Land the branch.** Open a PR from `parallel-tool-calls` (https://github.com/keithdmonte/Blindspot/pull/new/parallel-tool-calls) and merge it once CI passes.
 3. [ ] **Stream the report into the UI as it's written.** The final report call is now about 96s of the ~163s total. Streaming doesn't cut total time, but results start showing about 60s in instead of at the end. This is the last speed lever that doesn't touch quality.
 4. [ ] **Look into the coverage finding below.** When the model listed competitors without writing full details for each, it found 25–50% more real competitors from the same research. Worth exploring as a quality improvement, separate from speed.
 5. [ ] (Optional) Add a unit test for `mergeCompetitors` covering shared-host URLs (github.com, producthunt.com, reddit.com). There's no test script in `package.json` yet.
