@@ -53,17 +53,58 @@ export function normalizeLiveness(aliveRaw: unknown, lastActiveRaw: unknown): Li
   return "unknown";
 }
 
-/** Registrable-ish key for a competitor: its domain, else its lowercased name. */
+/** Hosts where each product lives under its own path: key by host + the first
+ * N path segments (owner/repo, products/slug), not the shared domain. */
+const PATH_KEYED_HOSTS: Record<string, number> = {
+  "github.com": 2,
+  "gitlab.com": 2,
+  "producthunt.com": 2,
+};
+
+/** Hosts whose URLs are posts or listings, not a product's identity — two
+ * products both cited by a Reddit thread are still two products. Key by name. */
+const NAME_KEYED_HOSTS = new Set([
+  "reddit.com",
+  "old.reddit.com",
+  "news.ycombinator.com",
+  "ycombinator.com",
+  "x.com",
+  "twitter.com",
+  "linkedin.com",
+  "youtube.com",
+  "medium.com",
+  "dev.to",
+  "indiehackers.com",
+  "apps.apple.com",
+  "play.google.com",
+  "chromewebstore.google.com",
+  "chrome.google.com",
+  "marketplace.atlassian.com",
+  "saashub.com",
+  "alternativeto.net",
+]);
+
+/** Registrable-ish key for a competitor: its domain (or host + path on shared
+ * hosts), else its lowercased name. */
 function keyOf(c: Competitor): string {
+  const name = c.name.trim().toLowerCase();
   const url = (c.url || "").trim().toLowerCase();
   if (url && url !== "unknown") {
-    const domain = url
+    const [host, ...path] = url
       .replace(/^https?:\/\//, "")
       .replace(/^www\./, "")
-      .split(/[/:?#]/)[0];
+      .split(/[?#]/)[0]
+      .split("/");
+    const domain = host.split(":")[0];
+    if (NAME_KEYED_HOSTS.has(domain)) return name;
+    const segments = PATH_KEYED_HOSTS[domain];
+    if (segments) {
+      const parts = path.filter(Boolean).slice(0, segments);
+      return parts.length === segments ? [domain, ...parts].join("/") : name;
+    }
     if (domain) return domain;
   }
-  return c.name.trim().toLowerCase();
+  return name;
 }
 
 /** Prefer the longer, non-"unknown" value between two text fields. */
