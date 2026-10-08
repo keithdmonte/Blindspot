@@ -5,6 +5,9 @@ export const MODEL = "claude-sonnet-5";
 /** Agent loop budgets: hitting either forces synthesis with no tools. */
 export const MAX_ITERATIONS = 15;
 export const MAX_TOOL_CALLS = 70;
+/** Tool calls from one model turn run in parallel, at most this many at once.
+ * Capped so a 70-call fan-out doesn't trip per-source rate limits. */
+export const TOOL_CONCURRENCY = 8;
 // Raised from 8000 in Phase 4: GitHub + Reddit push competitor counts high
 // enough that the final report was truncating mid-section (losing META/SOURCES).
 export const MAX_TOKENS = 16000;
@@ -23,6 +26,10 @@ export const STALE_MONTHS = 18;
 /** Query expansion */
 export const EXPANSION_MAX_TOKENS = 1500;
 export const MAX_QUERIES = 12;
+
+/** Per-request timeout for source APIs. A stalled request is aborted and
+ * retried (withRetry) instead of holding up the whole parallel search round. */
+export const FETCH_TIMEOUT_MS = 20_000;
 
 /** Per-source result sizes */
 export const HN_HITS_PER_PAGE = 10;

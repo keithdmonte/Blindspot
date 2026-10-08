@@ -14,7 +14,7 @@
 import type { SourceTool } from "./types.js";
 import { withRetry } from "../util.js";
 import type { EventHandler } from "../events.js";
-import { PH_MAX_PRODUCTS, TAVILY_MAX_RESULTS } from "../config.js";
+import { PH_MAX_PRODUCTS, TAVILY_MAX_RESULTS, FETCH_TIMEOUT_MS } from "../config.js";
 
 const PH_API = "https://api.producthunt.com/v2/api/graphql";
 
@@ -35,6 +35,7 @@ async function phQuery<T>(
 ): Promise<T> {
   return withRetry(label, emit, async () => {
     const res = await fetch(PH_API, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -100,6 +101,7 @@ async function searchViaTavily(
 ): Promise<string[]> {
   const response = await withRetry(`tavily site:producthunt.com "${query}"`, emit, async () => {
     const res = await fetch("https://api.tavily.com/search", {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       method: "POST",
       headers: {
         "Content-Type": "application/json",

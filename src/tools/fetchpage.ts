@@ -5,7 +5,7 @@
  */
 import type { SourceTool } from "./types.js";
 import { withRetry } from "../util.js";
-import { FETCH_PAGE_MAX_CHARS } from "../config.js";
+import { FETCH_PAGE_MAX_CHARS, FETCH_TIMEOUT_MS } from "../config.js";
 
 export function fetchPageTool(tavilyApiKey: string): SourceTool {
   return {
@@ -30,6 +30,7 @@ export function fetchPageTool(tavilyApiKey: string): SourceTool {
       const { url } = input as { url: string };
       const response = await withRetry(`fetch ${url}`, emit, async () => {
         const res = await fetch("https://api.tavily.com/extract", {
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
           method: "POST",
           headers: {
             "Content-Type": "application/json",
