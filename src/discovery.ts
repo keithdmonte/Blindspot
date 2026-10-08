@@ -57,6 +57,9 @@ export async function runDiscovery(
       candidateCap: CANDIDATE_CAP,
     }),
     firstMessage: buildFirstMessage(idea, queries, discoveryTools),
+    // The first turn is always "every discovery tool × every query" (the
+    // prompt mandates it), so run it directly instead of waiting on the model.
+    seedCalls: discoveryTools.flatMap((name) => queries.map((query) => ({ name, input: { query } }))),
     registry,
     onEvent: emit,
   });

@@ -187,11 +187,6 @@ export const reportTool: Anthropic.Tool = {
         items: { type: "string" },
         description: "Fields that were thin/unknown across competitors, e.g. [\"pricing\", \"funding\"].",
       },
-      sources: {
-        type: "array",
-        items: { type: "string" },
-        description: "One URL per line — only the ones you actually relied on.",
-      },
     },
     required: [
       "verdict",
@@ -203,7 +198,6 @@ export const reportTool: Anthropic.Tool = {
       "coverage",
       "stopCondition",
       "thinFields",
-      "sources",
     ],
   },
 };
@@ -306,7 +300,11 @@ export function coerceReport(input: unknown): StructuredReport {
     coverage: salvagedCov,
     stopCondition,
     thinFields: arr(o.thinFields).filter((t): t is string => typeof t === "string"),
-    sources,
+    // Not asked of the model (it already cites URLs per competitor and gap,
+    // and repeating them cost output time): derive the list from that evidence.
+    sources: sources.length
+      ? sources
+      : [...new Set([...salvagedComps, ...salvagedGaps].flatMap((x) => x.evidence))],
   };
 }
 
