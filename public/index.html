@@ -415,7 +415,10 @@
 
   function renderReport(rawReport, stats) {
     const r = cleanReport(rawReport);
-    const v = VERDICT[r.verdict] || VERDICT.crowded;
+    // While streaming, the verdict can arrive after the competitors: show a
+    // neutral header until it does rather than the "crowded" fallback.
+    const pending = stats.partial && !stats.verdictReady;
+    const v = pending ? { color: "#9d9da6", lead: "Weighing", rest: "the verdict…" } : VERDICT[r.verdict] || VERDICT.crowded;
     const mix = (pct) => `color-mix(in oklab, ${v.color} ${pct}%, transparent)`;
     const comps = r.competitors || [], gaps = r.gaps || [], cov = r.coverage || [];
     const kept = comps.length;
@@ -483,6 +486,8 @@
     const runDate = new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
     const cost = typeof stats.cost === "number" ? "~$" + stats.cost.toFixed(2) : "";
     const tokens = (stats.inputTokens + stats.outputTokens).toLocaleString();
+    // A partial report is still being written: say so instead of "none found".
+    const empty = (text) => `<p style="color:#6f6f77; font-size:14px;">${stats.partial ? "Still writing…" : text}</p>`;
 
     const fullLog = $("bs-log").innerHTML; // live DOM = rows in their settled state
 
@@ -490,12 +495,12 @@
       <div>
         <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
           <span style="font-size: 11.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #d8b36a;">Verdict</span>
-          <span style="font-size: 12.5px; color: #6f6f77; font-variant-numeric: tabular-nums;">${runDate} · ${cov.length}/${cov.length} sources reporting</span>
+          <span style="font-size: 12.5px; color: #6f6f77; font-variant-numeric: tabular-nums;">${runDate} · ${stats.partial ? "writing the report…" : `${cov.length}/${cov.length} sources reporting`}</span>
           <div style="flex: 1;"></div>
           <button class="bs-ghost bs-newidea" style="min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03); color: #f5f5f4; font-weight: 600; font-size: 13px; font-family: inherit; transition: border-color 150ms ease;">← New idea</button>
         </div>
         <h2 style="margin: 20px 0 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.035em; font-size: clamp(36px, 5.2vw, 50px); line-height: 1.04; text-wrap: balance;"><span style="color: ${v.color}; text-shadow: 0 0 48px ${mix(35)};">${esc(v.lead)}</span> <span style="color: #f5f5f4;">${esc(v.rest)}</span></h2>
-        <div style="margin-top: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+        <div style="margin-top: 16px; display: ${pending ? "none" : "flex"}; align-items: center; gap: 14px; flex-wrap: wrap;">
           <span style="display: inline-flex; align-items: center; border: 1px solid ${mix(40)}; color: ${v.color}; background: ${mix(10)}; border-radius: 9999px; padding: 5px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;">${esc(r.verdict)}</span>
           <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">Confidence ${r.confidence.toFixed(2)} · recommendation ${esc(r.recommendation)} · ${deadN ? `${kept} found · <span style="color:#e5695c;">${deadN} dead</span> · ${livingN} living` : `${kept} competitors`}</span>
         </div>
@@ -511,7 +516,7 @@
           ${obscureN ? '<span style="font-size: 12px; color: #9d9da6;"><span style="color: #d8b36a;">◆</span> surfaced only by deep search</span>' : ""}
         </div>
         <div style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px;">
-          ${compCards || '<p style="color:#6f6f77; font-size:14px;">No direct competitors surfaced.</p>'}
+          ${compCards || empty("No direct competitors surfaced.")}
         </div>
       </div>
 
@@ -521,7 +526,7 @@
           <span style="font-size: 13px; color: #6f6f77;">Where the field is thin, with the receipts</span>
         </div>
         <div style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
-          ${gapCards || '<p style="color:#6f6f77; font-size:14px;">No clearly grounded opening.</p>'}
+          ${gapCards || empty("No clearly grounded opening.")}
         </div>
       </div>
 
@@ -534,7 +539,7 @@
           <div style="display: grid; grid-template-columns: ${covGrid}; gap: 10px; padding: 10px 18px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6f6f77; background: rgba(255,255,255,0.03);">
             <span>Source</span><span>Calls</span><span>Hits</span><span>Signal</span><span>Note</span>
           </div>
-          ${covRows}
+          ${covRows || (stats.partial ? `<div style="padding: 11px 18px; font-size: 13px; color: #6f6f77;">Still writing…</div>` : "")}
         </div>
         ${r.thinFields && r.thinFields.length ? `<div style="margin-top: 12px; border: 1px solid rgba(232,176,75,0.28); background: rgba(232,176,75,0.06); border-radius: 12px; padding: 13px 18px; font-size: 13px; line-height: 1.6; color: #e8b04b;">⚠ Thin spots: ${esc(r.thinFields.join(", "))}. Weigh those claims accordingly.</div>` : ""}
       </div>
@@ -547,7 +552,7 @@
       ${r.sources && r.sources.length ? `<div style="margin-top: 28px;"><div style="font-size: 11.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6f6f77; margin-bottom: 10px;">Sources</div><div style="display: flex; flex-direction: column; gap: 5px; font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all;">${r.sources.map((s) => isUrl(s) ? `<a href="${esc(s)}" target="_blank" rel="noopener">${esc(s)}</a>` : `<span style="color:#6f6f77;">${esc(s)}</span>`).join("")}</div></div>` : ""}
 
       <div style="margin-top: 48px; border-top: 1px solid rgba(255,255,255,0.08); padding: 20px 0 64px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-        <span style="font-size: 12px; color: #6f6f77; font-variant-numeric: tabular-nums;">Stopped by ${esc(stopLabel)} · ${stats.iterations} passes · ${stats.toolCalls} tool calls · ${tokens} tokens · ${cost}</span>
+        <span style="font-size: 12px; color: #6f6f77; font-variant-numeric: tabular-nums;">${stats.partial ? `Still writing · ${kept} competitors so far` : `Stopped by ${esc(stopLabel)} · ${stats.iterations} passes · ${stats.toolCalls} tool calls · ${tokens} tokens · ${cost}`}</span>
         <div style="flex: 1;"></div>
         <button class="bs-white bs-newidea" style="min-height: 46px; padding: 0 26px; border-radius: 11px; border: 1px solid #ffffff; background: #ffffff; color: #0a0a0b; font-weight: 600; font-size: 14px; font-family: inherit; box-shadow: 0 0 24px rgba(255,255,255,0.1); transition: transform 150ms ease, box-shadow 150ms ease;">Validate another idea</button>
       </div>`;
@@ -659,13 +664,15 @@
           buf = buf.slice(nl + 1);
           if (!raw) continue;
           let e; try { e = JSON.parse(raw); } catch { continue; }
-          if (e.type === "done") {
-            clearInterval(timer);
-            finished = true; renderPhases();
+          if (e.type === "report_partial" || e.type === "done") {
+            const final = e.type === "done";
+            if (final) { clearInterval(timer); finished = true; renderPhases(); }
             $("bs-cands").textContent = (e.report.competitors || []).length;
-            renderReport(e.report, e);
-            show("report");
-            window.scrollTo(0, 0);
+            const firstShow = $("screen-report").classList.contains("hidden");
+            renderReport(e.report, final ? e : { partial: true, verdictReady: e.verdictReady });
+            // Jump to the top only when the report first appears, not on every
+            // update, so reading the streaming report isn't interrupted.
+            if (firstShow) { show("report"); window.scrollTo(0, 0); }
           } else if (e.type === "fatal") {
             clearInterval(timer); show("input"); fieldErr("bs-ideaErr", e.message);
           } else {

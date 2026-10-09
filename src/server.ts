@@ -20,7 +20,6 @@ import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import Anthropic from "@anthropic-ai/sdk";
 import type { DiscoveryEvent } from "./events.js";
-import { PRICE_PER_MTOK_IN, PRICE_PER_MTOK_OUT } from "./config.js";
 import { runDiscovery } from "./discovery.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -150,10 +149,6 @@ app.post("/run", async (req, reply) => {
       githubToken,
       onEvent,
     });
-    const cost =
-      (result.usage.inputTokens * PRICE_PER_MTOK_IN +
-        result.usage.outputTokens * PRICE_PER_MTOK_OUT) /
-      1_000_000;
     send({
       type: "done",
       report: result.report,
@@ -161,7 +156,7 @@ app.post("/run", async (req, reply) => {
       toolCalls: result.toolCalls,
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
-      cost,
+      cost: result.usage.cost,
       stoppedBy: result.stoppedBy,
     });
   } catch (err) {

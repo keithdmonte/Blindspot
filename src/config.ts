@@ -42,6 +42,9 @@ export const SAASHUB_THROTTLE_MS = 1100;
 export const GITHUB_MAX_RESULTS = 10;
 export const REDDIT_MAX_RESULTS = 5;
 
-/** Sonnet 5 $/MTok — intro pricing through 2026-08-31 ($3 in / $15 out after). */
+/** Sonnet 5 $/MTok. The $2/$10 launch price became standard (the planned
+ * 2026-09-01 rise to $3/$15 was cancelled). Cache writes use the 5-minute TTL. */
 export const PRICE_PER_MTOK_IN = 2;
+export const PRICE_PER_MTOK_CACHE_WRITE = 2.5;
+export const PRICE_PER_MTOK_CACHE_READ = 0.2;
 export const PRICE_PER_MTOK_OUT = 10;

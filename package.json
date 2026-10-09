@@ -10,7 +10,8 @@
     "blindspot": "tsx src/cli.ts",
     "serve": "tsx src/server.ts",
     "start": "tsx src/server.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts"
   },
   "engines": {
     "node": ">=20"

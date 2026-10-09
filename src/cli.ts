@@ -11,7 +11,6 @@
 import "dotenv/config";
 import Anthropic from "@anthropic-ai/sdk";
 import type { DiscoveryEvent } from "./events.js";
-import { PRICE_PER_MTOK_IN, PRICE_PER_MTOK_OUT } from "./config.js";
 import { runDiscovery } from "./discovery.js";
 import { renderReportForTerminal } from "./report.js";
 
@@ -100,15 +99,12 @@ try {
   });
   console.log("\n════════════════════════════════\n");
   console.log(renderReportForTerminal(result.report));
-  const cost =
-    (result.usage.inputTokens * PRICE_PER_MTOK_IN + result.usage.outputTokens * PRICE_PER_MTOK_OUT) /
-    1_000_000;
   const stopped =
     result.stoppedBy === "model" ? "stopped on its own" : `cut off by ${result.stoppedBy}`;
   console.log(
     `\n(${result.iterations} iterations, ${result.toolCalls} tool calls, ` +
       `${result.usage.inputTokens.toLocaleString()} in / ${result.usage.outputTokens.toLocaleString()} out tokens, ` +
-      `~$${cost.toFixed(2)}, ${stopped})`,
+      `~$${result.usage.cost.toFixed(2)}, ${stopped})`,
   );
 } catch (err) {
   if (err instanceof Anthropic.APIError) {

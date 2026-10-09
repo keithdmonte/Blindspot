@@ -20,6 +20,8 @@ export type DiscoveryEvent =
   | { type: "tool_error"; tool: string; query: string; message: string }
   | { type: "retry"; label: string; attempt: number; attempts: number; delayMs: number; message: string }
   | { type: "usage"; iteration: number; inputTokens: number; outputTokens: number }
+  /** The report so far, re-sent each time another item finishes streaming. */
+  | { type: "report_partial"; report: StructuredReport; verdictReady: boolean }
   | { type: "report"; report: StructuredReport };
 
 export type EventHandler = (event: DiscoveryEvent) => void;

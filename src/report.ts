@@ -80,6 +80,10 @@ export const REPORT_TOOL = "submit_report";
  */
 export const reportTool: Anthropic.Tool = {
   name: REPORT_TOOL,
+  // Stream the input as it is written (no server-side buffering) so the UI can
+  // show the report early. The API then skips validating it: coerceReport
+  // tolerates bad fields and agent.ts rejects a max_tokens cut-off.
+  eager_input_streaming: true,
   description:
     "Submit the final competitive-landscape report. Call this once, only when " +
     "you have finished searching. Every field must trace to something you saw " +

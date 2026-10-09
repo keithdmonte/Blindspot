@@ -1,6 +1,6 @@
 name: CI
 
-# Typecheck only. No API keys, no secrets, and it never runs `blindspot`
+# Typecheck and offline unit tests. No API keys, no secrets, and it never runs `blindspot`
 # itself — the tool costs credits per run, so CI must never invoke it
 # (ROADMAP.md Phase 4). Add lint + a mocked smoke test later.
 on:
@@ -18,3 +18,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test
