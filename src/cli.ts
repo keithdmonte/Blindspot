@@ -109,6 +109,9 @@ try {
 } catch (err) {
   if (err instanceof Anthropic.APIError) {
     console.error(`\nAnthropic API error (${err.status}): ${err.message}`);
+    if (err.status === 401 || err.status === 403) {
+      console.error("Check ANTHROPIC_API_KEY in .env (see .env.example).");
+    }
   } else {
     console.error(`\nFatal: ${err instanceof Error ? err.message : err}`);
   }

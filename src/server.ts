@@ -39,15 +39,18 @@ const tavilyApiKey = process.env.TAVILY_API_KEY;
 const productHuntToken = process.env.PRODUCTHUNT_API_TOKEN;
 const githubToken = process.env.GITHUB_TOKEN;
 const port = Number(process.env.PORT ?? 3000);
+// Localhost only unless HOST opts in (e.g. 0.0.0.0 for Docker or a deploy).
+const host = process.env.HOST?.trim() || "127.0.0.1";
 
 // Optional spend gate. When APP_PASSWORD is set, /run demands it — set this
 // before exposing a public URL, since every run spends Anthropic credits.
 const appPassword = process.env.APP_PASSWORD;
 const authRequired = Boolean(appPassword);
-if (!authRequired) {
+const localOnly = host === "127.0.0.1" || host === "localhost" || host === "::1";
+if (!authRequired && !localOnly) {
   console.warn(
-    "APP_PASSWORD not set — /run is OPEN. Fine for localhost; set it before " +
-      "deploying to a public URL so an open endpoint can't drain the wallet.",
+    `APP_PASSWORD not set and HOST is ${host} — anyone who can reach this ` +
+      "machine can start runs on your API key. Set APP_PASSWORD.",
   );
 }
 
@@ -72,10 +75,10 @@ function friendlyError(err: unknown): string {
     const status = err.status;
     const raw = (err.message ?? "").toLowerCase();
     if (status === 400 && raw.includes("credit balance")) {
-      return "We're temporarily out of credits. Please try again later.";
+      return "Your Anthropic account is out of credits. Add credits in the Anthropic Console.";
     }
     if (status === 401 || status === 403) {
-      return "Service is misconfigured. Please try again later.";
+      return "Anthropic rejected the API key. Check ANTHROPIC_API_KEY in .env.";
     }
     if (status === 429) {
       return "Too many requests right now. Please wait a moment and try again.";
@@ -168,7 +171,7 @@ app.post("/run", async (req, reply) => {
   }
 });
 
-app.listen({ port, host: "0.0.0.0" }, (err, address) => {
+app.listen({ port, host }, (err, address) => {
   if (err) {
     console.error(err);
     process.exit(1);
