@@ -2,72 +2,93 @@
 
 **Find the competitors Google can't.** An "is this idea taken?" validator that surfaces the small, new, obscure players authority-ranked search structurally misses.
 
-## What it is
+![Blindspot report for a pet-sitting marketplace idea: verdict "Crowded, but there's a lane", 34 competitors found, 8 dead, with competitor cards for Rover, Wag! and PetBacker](docs/screenshot.png)
 
-You describe a product idea. Blindspot returns the competitive landscape: who's already building it, their pricing, positioning, funding, use case — and where the gaps are. A verdict (taken / crowded / open lane) with evidence.
+## What it does
 
-## Who it's for
+You describe a product idea. Blindspot returns the competitive landscape: who's already building it, their pricing, positioning, traction and use case, and where the gaps are. It ends with a verdict (**taken / crowded / open lane**) backed by evidence links.
 
-Anyone validating a product idea: solo founders, startup teams, PMs, agencies, investors doing quick diligence.
+It runs on your machine with your own API keys. Nothing is hosted.
 
-## Why it exists (the moat)
+## Why it finds more
 
-Google, Perplexity, and ChatGPT rank by authority — backlinks, domain age, traffic. A three-week-old side project with 40 Product Hunt upvotes is invisible to them. But those obscure competitors are exactly what an idea validator must find; the big names are easy and you already know them.
+Google, Perplexity and ChatGPT rank by authority: backlinks, domain age, traffic. A three-week-old side project with 40 Product Hunt upvotes is invisible to them. Those obscure competitors are exactly what an idea validator must find.
 
-Blindspot's recall comes from three things general search doesn't do:
+Blindspot gets its recall from three things general search doesn't do:
 
-1. **Search where builders self-publish** — Product Hunt, Hacker News, Reddit, AlternativeTo and "alternatives to X" pages, directories, GitHub. One tool per source, fanned out in parallel, results unioned.
-2. **Query expansion** — the idea is reframed many ways (the problem stated 5 different ways, alternate product names, adjacent categories), because tiny startups describe themselves in words you didn't use.
-3. **Snowballing** — once a few competitors are found, their pages and "alternatives to" listings are mined to surface the rest. Recall compounds.
+1. **Search where builders self-publish:** Product Hunt, Hacker News, Reddit, SaaSHub "alternatives" pages, GitHub and the open web. One tool per source, run in parallel.
+2. **Query expansion:** the idea is reframed many ways (the problem stated differently, alternate product names, adjacent categories), because tiny startups describe themselves in words you didn't use.
+3. **Snowballing:** once a few competitors are found, their pages and "alternatives to" listings are mined for the rest.
 
-See [TECHNICAL_DESIGN.md](TECHNICAL_DESIGN.md) for how, [PRD.md](PRD.md) for the product spec, [SOURCES.md](SOURCES.md) for the source list.
+## Requirements
 
-## Status
+- Node.js 20 or newer
+- An [Anthropic API key](https://console.anthropic.com/) (required)
+- A [Tavily API key](https://tavily.com/) (strongly recommended, free tier available)
 
-**Phase 1 complete** — CLI runs end-to-end with query expansion and the Hacker News (Algolia) source, plus optional Tavily web search for gap-fill. Product Hunt, AlternativeTo, and snowballing are next ([ROADMAP.md](ROADMAP.md) Phase 2).
-
-## Quickstart
+## Setup
 
 ```bash
+git clone https://github.com/keithdmonte/Blindspot.git
+cd Blindspot
 npm install
-cp .env.example .env    # fill in ANTHROPIC_API_KEY (TAVILY_API_KEY optional)
-
-npm run blindspot -- "a tool that turns meeting recordings into follow-up emails"
-
-# or install the global command:
-npm link
-blindspot "a tool that turns meeting recordings into follow-up emails"
+cp .env.example .env    # then add your keys
 ```
 
-A run prints the expanded query set, live search progress, then a plain-text report: VERDICT / COMPETITORS (each with HN evidence links and obscurity flags) / NOTES / SOURCES, with a token + cost footer. Typical run: ~$0.10–0.25.
+## Keys and sources
 
-## Web UI
+Only `ANTHROPIC_API_KEY` is required, but each optional key unlocks sources. **With the Anthropic key alone, Blindspot searches only Hacker News, GitHub and SaaSHub, and will miss many competitors.** Add a Tavily key for real results.
 
-The same engine runs in the browser so a non-CLI user can validate an idea and watch it stream.
+| Key | Unlocks |
+|---|---|
+| `ANTHROPIC_API_KEY` (required) | The agent itself, plus Hacker News, GitHub and SaaSHub alternatives |
+| `TAVILY_API_KEY` (recommended) | Web search, page fetching and Reddit |
+| `PRODUCTHUNT_API_TOKEN` | Product Hunt search with votes and launch dates (works best with Tavily too) |
+| `GITHUB_TOKEN` | Higher GitHub rate limit (no scopes needed) |
+
+Every option is documented in [`.env.example`](.env.example).
+
+## Usage
+
+### CLI
 
 ```bash
-# needs ANTHROPIC_API_KEY in .env.
-npm run serve                        # http://localhost:3000
+npm run blindspot -- "a tool that turns meeting recordings into follow-up emails"
 ```
 
-Enter the idea, and the run streams live over a single NDJSON response — phase chips (expand → sweep → chase → score) and a timestamped log — then renders a report: a verdict block (colored by taken / crowded / open lane, with confidence), competitor cards (overlap + obscurity flags), gap cards, and a source-coverage table.
+A run prints the expanded queries and live search progress, then the report: verdict, competitors, gaps and sources, with a token and cost footer.
 
-The report is **structured data**, not prose: the agent ends every run by calling a `submit_report` tool whose fields (`competitors[]`, `gaps[]`, `coverage[]`, verdict + confidence) the CLI and web UI both render — see `src/report.ts`. No database yet — saved runs/history land in the next phase ([ROADMAP.md](ROADMAP.md) Phase 5).
+### Web UI
 
-## Deploy
+```bash
+npm run serve    # http://localhost:3000
+```
 
-The web app is production-ready and platform-agnostic — no build step, one long-lived streaming endpoint.
+Enter an idea and watch the run stream live, then read the report: a verdict block, competitor cards, gap cards and a source-coverage table.
 
-- **Start:** `npm start` (runs `src/server.ts` via `tsx`, a runtime dependency). Binds `0.0.0.0` on `$PORT` (injected by the host; defaults to 3000).
-- **Health check:** `GET /health` → `{"ok":true}`.
-- **Node:** `>=20` (see `engines`).
-- **Auth is env-driven.** Leave `APP_PASSWORD` unset and the app is open (fine for localhost). **Set `APP_PASSWORD` and every `/run` is gated** — the front-end reads `GET /config` and shows the access-code field automatically. Set it before exposing a public URL, since each run spends Anthropic credits.
+The server listens on `127.0.0.1` only. To reach it from other devices, set `HOST=0.0.0.0` **and** `APP_PASSWORD` in `.env`, otherwise anyone on your network can start runs on your API key.
 
-Recommended host: **Railway / Render** (Vercel/Netlify won't work — serverless timeouts kill the minute-long streams). Steps:
+## Cost
 
-1. New project → deploy from the GitHub repo.
-2. Set env vars (see [`.env.example`](.env.example)): `ANTHROPIC_API_KEY` (required), `APP_PASSWORD` (set it), `TAVILY_API_KEY` + `GITHUB_TOKEN` (recommended).
-3. Start command `npm start`, health-check path `/health`.
-4. Deploy, generate a domain, run one validation end-to-end to confirm the stream arrives live.
+Each run costs about **$0.35–0.50** in Anthropic API usage, billed to your key. Tavily's free tier covers casual use. Set a monthly spend limit on your key in the Anthropic Console.
 
-Also cap spend on the Anthropic key itself (console budget limit) as a backstop.
+The default model is `claude-sonnet-5`. To use another, set `BLINDSPOT_MODEL` and its prices in `.env` (see `.env.example`).
+
+## How it works
+
+The agent expands your idea into a query set, fans out searches across the sources, follows promising leads, then ends every run by calling a `submit_report` tool. The report is structured data (`competitors[]`, `gaps[]`, `coverage[]`, verdict and confidence) that both the CLI and web UI render. See [`docs/TECHNICAL_DESIGN.md`](docs/TECHNICAL_DESIGN.md) for the design, [`docs/PRD.md`](docs/PRD.md) for the product spec and [`docs/SOURCES.md`](docs/SOURCES.md) for source details.
+
+## Development
+
+```bash
+npm run typecheck
+npm test
+```
+
+## Third-party terms
+
+Blindspot reads public pages from SaaSHub and other sites, and calls the Hacker News, GitHub, Product Hunt and Tavily APIs. Each has its own terms of service and rate limits. You are responsible for following them when you run Blindspot. Product Hunt's API, for example, is non-commercial by default. See [`docs/SOURCES.md`](docs/SOURCES.md) for notes on each source.
+
+## License
+
+[MIT](LICENSE)

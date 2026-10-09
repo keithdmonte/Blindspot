@@ -15,7 +15,7 @@ import type { SourceTool } from "./types.js";
 import { withRetry } from "../util.js";
 import { SAASHUB_THROTTLE_MS, FETCH_TIMEOUT_MS } from "../config.js";
 
-const UA = "BlindspotBot/0.1 (competitor research; contact: dmontekm@gmail.com)";
+const UA = "BlindspotBot/0.1 (competitor research; +https://github.com/keithdmonte/Blindspot)";
 
 /** Serialize + space out SaaSHub requests across the whole run. */
 let lastRequest: Promise<unknown> = Promise.resolve();

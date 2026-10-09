@@ -9,7 +9,7 @@ Blindspot is a **multi-tool agent loop**: one tool per source, fanned out, resul
 - TypeScript
 - Anthropic SDK (agent loop with tool use) — builds on the existing working research-agent loop (Tavily + Claude API)
 - Tavily retained for general-web fills (pricing pages, competitor sites)
-- v1: CLI. Deploy target later: Railway.
+- Runs locally: CLI and a web UI on localhost, with the user's own API keys.
 
 ## Agent loop
 
