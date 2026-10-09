@@ -10,7 +10,9 @@ export const MAX_TOOL_CALLS = 70;
 export const TOOL_CONCURRENCY = 8;
 // Raised from 8000 in Phase 4: GitHub + Reddit push competitor counts high
 // enough that the final report was truncating mid-section (losing META/SOURCES).
-export const MAX_TOKENS = 16000;
+// Raised to 32000: a 16000 cap cut submit_report mid-JSON on crowded ideas,
+// leaving an empty report. Above ~21k the SDK requires streaming (agent.ts).
+export const MAX_TOKENS = 32000;
 
 /** Enrichment stops past this many competitors — beyond it the verdict is
  * "crowded" regardless, and more enrichment adds cost, not signal. Enforced
