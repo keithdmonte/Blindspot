@@ -51,14 +51,17 @@ export async function agentLoop(opts: {
     iteration: number,
     toolChoice?: Anthropic.ToolChoice,
   ) => {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: systemPrompt,
-      tools: toolChoice ? [reportTool] : definitions,
-      tool_choice: toolChoice,
-      messages: withCacheBreakpoints(messages),
-    });
+    // Streamed only because the SDK refuses non-streaming calls this large.
+    const response = await client.messages
+      .stream({
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        system: systemPrompt,
+        tools: toolChoice ? [reportTool] : definitions,
+        tool_choice: toolChoice,
+        messages: withCacheBreakpoints(messages),
+      })
+      .finalMessage();
     const u = response.usage;
     const input = u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
     usage.inputTokens += input;
@@ -172,6 +175,11 @@ export async function agentLoop(opts: {
     // 3. submit_report → the run is done. Its validated input IS the report.
     const reportCall = toolUses.find((t) => t.name === REPORT_TOOL);
     if (reportCall) {
+      // Truncated tool input arrives empty; coercing it would render a blank
+      // report as if the run succeeded. Fail loudly instead.
+      if (response.stop_reason === "max_tokens") {
+        throw new Error(`submit_report truncated at max_tokens (${MAX_TOKENS})`);
+      }
       const report = coerceReport(reportCall.input);
       emit({ type: "report", report });
       return { report, iterations: iteration, toolCalls, usage, stoppedBy: capReason ?? "model" };
