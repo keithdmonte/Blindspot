@@ -26,8 +26,8 @@ With only an Anthropic key, Blindspot runs on HN and GitHub alone. Web search, `
    - steps: clone, `npm install`, copy `.env.example`, add keys
    - CLI and web UI usage
    - which key unlocks which source
-   - expected cost (about $0.43 per run, billed to the user's key)
-4. **Fix hardcoded pricing and model** in `src/config.ts`. The $2/$10 intro pricing ended 2026-08-31, so the cost display is too low. Let users override the model with an env var (for example `BLINDSPOT_MODEL`).
+   - expected cost (about $0.35–0.50 per run, billed to the user's key)
+4. **Make the model configurable** in `src/config.ts` with an env var (for example `BLINDSPOT_MODEL`). Pricing is already correct: the $2/$10 Sonnet 5 launch price became the standard price, and cache reads and writes are priced separately (PR #6). Prices are per model, so a model override also needs its prices.
 5. **Fail clearly when the key is missing.** Show a friendly message pointing to `.env.example`, not an SDK stack trace.
 6. **Make the server safe by default.** Bind to `127.0.0.1` unless the user opts in. With `APP_PASSWORD` blank and a public bind, anyone on the network could spend the user's money.
 7. **Clean up internal docs.** Move `NEXT_STEPS.md`, `PHASE6.md`, `PRD.md` and `ROADMAP.md` to `docs/`, or trim or delete them. Add `.claude/` to `.gitignore`.
@@ -35,7 +35,7 @@ With only an Anthropic key, Blindspot runs on HN and GitHub alone. Web search, `
 
 ## Should do (quality and trust)
 
-- **Unit tests** for dedup, liveness and report parsing, run in CI. There are none today.
+- **More unit tests.** Dedup tests (`mergeCompetitors`, `mergeMentions`) exist and CI runs `npm test`. Liveness and report parsing (`coerceReport`, XML salvage) still have none.
 - `.nvmrc` to pin the Node version.
 - `SECURITY.md` on how to report vulnerabilities.
 - A short `CONTRIBUTING.md`.
@@ -56,7 +56,7 @@ Output **will change**, and accuracy may drop.
 **Why:**
 - The code calls the Anthropic SDK directly, so another provider needs an adapter.
 - Prompts (query expansion, candidate cap, liveness rules, `submit_report`) are tuned for Claude.
-- A run is up to 15 turns and 70 tool calls, many in parallel, ending in one large structured report (up to 32k tokens). Weaker models stop early, loop, or produce broken JSON.
+- A run is up to 15 turns and 70 tool calls, many in parallel, ending in one large structured report (18–27k tokens, capped at 64k). Weaker models stop early, loop, or produce broken JSON.
 
 **What stays vs. what changes:**
 - Stays roughly the same: raw candidates. They come from the source tools, not from the model's memory.
@@ -86,13 +86,13 @@ Ship quality first, add choice later.
 | Item | Cost |
 |---|---|
 | Public GitHub repo | Free |
-| API usage | Paid by users with their own keys (about $0.43/run) |
+| API usage | Paid by users with their own keys (about $0.35–0.50/run) |
 | GitHub Actions CI | Free and unlimited for public repos |
 | npm / Docker Hub (later) | Free |
 
 **What would cost money:**
 - **A hosted public demo** where you pay for the API. Every visitor spends your money. Avoid it, or protect it with a password and a spending cap.
-- **Your own eval runs:** about 10 ideas × $0.43, so roughly $4–5 per full pass.
+- **Your own eval runs:** about 10 ideas × $0.35–0.50, so roughly $4–5 per full pass.
 - **Optional custom domain:** about $10–15/year.
 
 **Main cost is time:** roughly 1–3 days for the cleanup list above.
@@ -118,7 +118,6 @@ Ship quality first, add choice later.
 ### Fix (not files to delete)
 - **`src/tools/alternatives.ts:18`**: the user-agent string contains a personal email. Every user's runs would send it to SaaSHub. Make it configurable, or point it to the repo URL.
 - **`.claude/settings.local.json`**: untracked only because of a global git ignore. Contributors won't have that rule, so add `.claude/` to the repo's `.gitignore`.
-- **`.github/workflows/ci.yml`**: runs `npm test`, but `package.json` has no `test` script. Check that CI actually passes; either add tests or remove that line.
 - **Git history**: deleted files stay visible in history. Low risk here (key names and a port only, no values). For a clean slate, squash into one fresh initial commit before going public.
 
 ## Order of work
@@ -129,7 +128,7 @@ Ship quality first, add choice later.
 4. Missing-key error and localhost bind
 5. README rewrite
 6. Docs cleanup and audit fixes (see Repo audit)
-7. Tests
+7. More tests (liveness, report parsing)
 8. Optional: squash history into one fresh commit
 9. Flip the repo to public in GitHub settings
 10. Later: Docker, npm, experimental OpenRouter
