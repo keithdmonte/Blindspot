@@ -1,6 +1,6 @@
 /**
  * Deterministic backstop on the model's own de-duping, plus the liveness
- * bucketing (Phase 6 — see PHASE6.md). The model dedups implicitly, but the
+ * bucketing (Phase 6). The model dedups implicitly, but the
  * same product routinely arrives from HN + Product Hunt + GitHub under
  * slightly different names and URLs; merging by domain here keeps the
  * competitor count honest, and a merge that finds a fresher date recomputes

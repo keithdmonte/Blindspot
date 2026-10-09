@@ -1,6 +1,7 @@
 /** All tunable knobs in one place. Secrets stay in .env; these are behavior. */
 
-export const MODEL = "claude-sonnet-5";
+const DEFAULT_MODEL = "claude-sonnet-5";
+export const MODEL = process.env.BLINDSPOT_MODEL?.trim() || DEFAULT_MODEL;
 
 /** Agent loop budgets: hitting either forces synthesis with no tools. */
 export const MAX_ITERATIONS = 15;
@@ -43,9 +44,29 @@ export const SAASHUB_THROTTLE_MS = 1100;
 export const GITHUB_MAX_RESULTS = 10;
 export const REDDIT_MAX_RESULTS = 5;
 
-/** Sonnet 5 $/MTok. The $2/$10 launch price became standard (the planned
- * 2026-09-01 rise to $3/$15 was cancelled). Cache writes use the 5-minute TTL. */
-export const PRICE_PER_MTOK_IN = 2;
-export const PRICE_PER_MTOK_CACHE_WRITE = 2.5;
-export const PRICE_PER_MTOK_CACHE_READ = 0.2;
-export const PRICE_PER_MTOK_OUT = 10;
+/** $/MTok for the default model, Sonnet 5. The $2/$10 launch price became
+ * standard (the planned 2026-09-01 rise to $3/$15 was cancelled). Cache writes
+ * use the 5-minute TTL. Another model needs its own prices, set in .env, so the
+ * cost shown is never computed at the wrong rates. */
+const DEFAULT_PRICES = { in: 2, cacheWrite: 2.5, cacheRead: 0.2, out: 10 };
+
+function price(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (raw) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0) return n;
+    console.error(`${name} must be a number of dollars per million tokens, got "${raw}".`);
+    process.exit(1);
+  }
+  if (MODEL === DEFAULT_MODEL) return fallback;
+  console.error(
+    `BLINDSPOT_MODEL is "${MODEL}", so set ${name} in .env to that model's ` +
+      "price (see .env.example).",
+  );
+  process.exit(1);
+}
+
+export const PRICE_PER_MTOK_IN = price("BLINDSPOT_PRICE_IN", DEFAULT_PRICES.in);
+export const PRICE_PER_MTOK_CACHE_WRITE = price("BLINDSPOT_PRICE_CACHE_WRITE", DEFAULT_PRICES.cacheWrite);
+export const PRICE_PER_MTOK_CACHE_READ = price("BLINDSPOT_PRICE_CACHE_READ", DEFAULT_PRICES.cacheRead);
+export const PRICE_PER_MTOK_OUT = price("BLINDSPOT_PRICE_OUT", DEFAULT_PRICES.out);
