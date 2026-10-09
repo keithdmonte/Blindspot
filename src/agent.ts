@@ -76,11 +76,20 @@ export async function agentLoop(opts: {
       if (event.type !== "content_block_delta" || event.delta.type !== "input_json_delta") return;
       const block = snapshot.content[event.index];
       if (block?.type !== "tool_use" || block.name !== REPORT_TOOL) return;
-      const partial = completedPart(block.input);
+      // The SDK parses the growing JSON on read, and some in-between buffers
+      // (a half-written number like "0.") throw. Skip those; the next delta
+      // parses. An uncaught throw here would kill the whole stream.
+      let input: unknown;
+      try {
+        input = block.input;
+      } catch {
+        return;
+      }
+      const partial = completedPart(input);
       if (!partial) return;
       // Only re-send when another item has finished, not on every token.
-      const { competitors, gaps, coverage } = partial.report;
-      const key = [competitors.length, gaps.length, coverage.length, partial.verdictReady].join(":");
+      const r = partial.report;
+      const key = [r.competitors, r.alsoSeen, r.gaps, r.coverage].map((a) => a.length).join(":") + partial.verdictReady;
       if (key === streamedKey) return;
       streamedKey = key;
       emit({ type: "report_partial", report: coerceReport(partial.report), verdictReady: partial.verdictReady });
@@ -94,17 +103,20 @@ export async function agentLoop(opts: {
     iteration: number,
     toolChoice?: Anthropic.ToolChoice,
   ) => {
-    let response: Anthropic.Message;
-    try {
-      response = await streamModel(messages, toolChoice, false);
-    } catch (err) {
-      // Eager streaming skips the API's JSON validation, so the model's tool
-      // input occasionally fails to parse. Retry once with it buffered. API
-      // errors (rate limits, auth) are not this and go straight up.
-      if (err instanceof Anthropic.APIError || !(err instanceof Anthropic.AnthropicError)) throw err;
-      emit({ type: "retry", label: "report", attempt: 1, attempts: 2, delayMs: 0, message: err.message });
+    let response = await streamModel(messages, toolChoice, false);
+    // Eager streaming skips the API's JSON validation, so the finished report
+    // input can be invalid JSON. Retry once with it buffered (validated).
+    if (!reportParses(response)) {
+      addUsage(response, iteration);
+      emit({ type: "retry", label: "report", attempt: 1, attempts: 2, delayMs: 0, message: "report JSON did not parse" });
       response = await streamModel(messages, toolChoice, true);
     }
+    addUsage(response, iteration);
+    return response;
+  };
+
+  // Count a response's tokens and cost, including failed attempts.
+  const addUsage = (response: Anthropic.Message, iteration: number) => {
     const u = response.usage;
     const cacheWrite = u.cache_creation_input_tokens ?? 0;
     const cacheRead = u.cache_read_input_tokens ?? 0;
@@ -118,7 +130,6 @@ export async function agentLoop(opts: {
         u.output_tokens * PRICE_PER_MTOK_OUT) /
       1_000_000;
     emit({ type: "usage", iteration, inputTokens: input, outputTokens: u.output_tokens });
-    return response;
   };
 
   // Dispatch each tool call through the registry, up to TOOL_CONCURRENCY at
@@ -255,19 +266,47 @@ export async function agentLoop(opts: {
   throw new Error("Agent loop exited without a report");
 }
 
+/** False when a submit_report input in this response is not valid JSON. */
+function reportParses(response: Anthropic.Message): boolean {
+  for (const block of response.content) {
+    if (block.type !== "tool_use" || block.name !== REPORT_TOOL) continue;
+    try {
+      void block.input; // parsed lazily by the SDK; throws on invalid JSON
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+type PartialReport = Record<string, unknown> & Record<"competitors" | "alsoSeen" | "gaps" | "coverage", unknown[]>;
+
 /**
- * The finished part of a submit_report input that is still streaming: every
- * array item except the last, which may be cut off mid-field. Null until at
- * least one item is finished. The model writes fields in no fixed order, so
- * verdictReady says whether the verdict and confidence have arrived yet.
+ * The finished part of a submit_report input that is still streaming. Fields
+ * arrive in JSON order, so only the last one can be incomplete: drop it if it
+ * is a scalar, or drop its last item if it is an array. Null until at least
+ * one item is finished. verdictReady says whether the verdict and confidence
+ * (which the model tends to write last) are complete yet.
  */
-function completedPart(
-  input: unknown,
-): { report: Record<string, unknown> & Record<"competitors" | "gaps" | "coverage", unknown[]>; verdictReady: boolean } | null {
-  const o = (input ?? {}) as Record<string, unknown>;
-  const done = (v: unknown) => (Array.isArray(v) ? v.slice(0, -1) : []);
-  const report = { ...o, competitors: done(o.competitors), gaps: done(o.gaps), coverage: done(o.coverage) };
-  if (!report.competitors.length && !report.gaps.length && !report.coverage.length) return null;
+function completedPart(input: unknown): { report: PartialReport; verdictReady: boolean } | null {
+  const o: Record<string, unknown> = { ...((input ?? {}) as Record<string, unknown>) };
+  const last = Object.keys(o).at(-1);
+  if (last !== undefined) {
+    const value = o[last];
+    if (Array.isArray(value)) o[last] = value.slice(0, -1);
+    else delete o[last];
+  }
+  const list = (v: unknown) => (Array.isArray(v) ? v : []);
+  const report: PartialReport = {
+    ...o,
+    competitors: list(o.competitors),
+    alsoSeen: list(o.alsoSeen),
+    gaps: list(o.gaps),
+    coverage: list(o.coverage),
+  };
+  if (!report.competitors.length && !report.alsoSeen.length && !report.gaps.length && !report.coverage.length) {
+    return null;
+  }
   return { report, verdictReady: typeof o.verdict === "string" && typeof o.confidence === "number" };
 }
 

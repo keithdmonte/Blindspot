@@ -6,7 +6,7 @@
  * competitor count honest, and a merge that finds a fresher date recomputes
  * the liveness label so it never lags behind the evidence.
  */
-import type { Competitor, Liveness, Overlap } from "./report.js";
+import type { Competitor, Liveness, Mention, Overlap } from "./report.js";
 import { ALIVE_MONTHS, STALE_MONTHS } from "./config.js";
 
 const LIVENESS = new Set<Liveness>(["active", "stale", "dead", "unknown"]);
@@ -86,7 +86,7 @@ const NAME_KEYED_HOSTS = new Set([
 
 /** Registrable-ish key for a competitor: its domain (or host + path on shared
  * hosts), else its lowercased name. */
-function keyOf(c: Competitor): string {
+function keyOf(c: { name: string; url: string }): string {
   const name = c.name.trim().toLowerCase();
   const url = (c.url || "").trim().toLowerCase();
   if (url && url !== "unknown") {
@@ -176,4 +176,21 @@ export function mergeCompetitors(list: Competitor[]): Competitor[] {
     c.sourceCount = Math.max(collapsed.get(key) ?? 1, modelMax.get(key) ?? 1);
     return c;
   });
+}
+
+/**
+ * Dedup the alsoSeen list: drop mentions of a product that already has a
+ * competitor entry, and merge repeats (unioning their evidence).
+ */
+export function mergeMentions(mentions: Mention[], competitors: Competitor[]): Mention[] {
+  const known = new Set(competitors.map(keyOf));
+  const byKey = new Map<string, Mention>();
+  for (const m of mentions) {
+    const key = keyOf(m);
+    if (known.has(key)) continue;
+    const existing = byKey.get(key);
+    if (existing) existing.evidence = [...new Set([...existing.evidence, ...m.evidence])];
+    else byKey.set(key, { ...m, evidence: [...m.evidence] });
+  }
+  return [...byKey.values()];
 }

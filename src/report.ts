@@ -7,7 +7,7 @@
  * model did not see in a tool result is "unknown", never invented.
  */
 import type Anthropic from "@anthropic-ai/sdk";
-import { mergeCompetitors, normalizeLiveness } from "./dedup.js";
+import { mergeCompetitors, mergeMentions, normalizeLiveness } from "./dedup.js";
 
 export type Verdict = "taken" | "crowded" | "open lane";
 export type Recommendation = "go" | "caution" | "no-go";
@@ -38,6 +38,14 @@ export interface Competitor {
   evidence: string[];
 }
 
+/** A product seen in a result but not given a full competitor entry: kept so
+ * the list is complete without guessing the details. */
+export interface Mention {
+  name: string;
+  url: string;
+  evidence: string[];
+}
+
 export interface Gap {
   /** Short headline number, e.g. "0/9" or "240▲". Optional. */
   stat?: string;
@@ -63,6 +71,7 @@ export interface StructuredReport {
   confidence: number;
   verdictWhy: string;
   competitors: Competitor[];
+  alsoSeen: Mention[];
   gaps: Gap[];
   coverage: Coverage[];
   stopCondition: StopCondition;
@@ -151,6 +160,22 @@ export const reportTool: Anthropic.Tool = {
           required: ["name", "url", "overlap", "obscure", "what", "pricing", "positioning", "traction", "alive", "sourceCount", "evidence"],
         },
       },
+      alsoSeen: {
+        type: "array",
+        description:
+          "Products only NAMED in a result, with nothing else known (a competitors entry would be all " +
+          "\"unknown\"). Name, URL and where you saw it only. Every product with any evidence still gets " +
+          "a full competitors entry. Never repeat a product that is in competitors.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            url: { type: "string", description: "Its own URL if seen, else \"unknown\"." },
+            evidence: { type: "array", items: { type: "string" }, description: "Result URL(s) where it was named." },
+          },
+          required: ["name", "url", "evidence"],
+        },
+      },
       gaps: {
         type: "array",
         description: "Openings grounded in complaints/coverage you saw. Every gap cites a source.",
@@ -198,6 +223,7 @@ export const reportTool: Anthropic.Tool = {
       "confidence",
       "verdictWhy",
       "competitors",
+      "alsoSeen",
       "gaps",
       "coverage",
       "stopCondition",
@@ -294,12 +320,26 @@ export function coerceReport(input: unknown): StructuredReport {
     verdictWhy = s.verdictWhy || verdictWhy;
   }
 
+  const mergedComps = mergeCompetitors(salvagedComps);
+  const alsoSeen = mergeMentions(
+    arr(o.alsoSeen).map((raw) => {
+      const m = (raw ?? {}) as Record<string, unknown>;
+      return {
+        name: str(m.name, "unnamed"),
+        url: str(m.url),
+        evidence: arr(m.evidence).filter((e): e is string => typeof e === "string"),
+      };
+    }),
+    mergedComps,
+  );
+
   return {
     verdict,
     recommendation,
     confidence: Math.max(0, Math.min(1, num(o.confidence, 0.5))),
     verdictWhy,
-    competitors: mergeCompetitors(salvagedComps),
+    competitors: mergedComps,
+    alsoSeen,
     gaps: salvagedGaps,
     coverage: salvagedCov,
     stopCondition,
@@ -443,6 +483,12 @@ export function renderReportForTerminal(r: StructuredReport): string {
     if (c.evidence.length) lines.push(`  evidence: ${c.evidence.map((e) => CYAN + e + RESET).join("  ")}`);
   }
   lines.push("");
+
+  if (r.alsoSeen.length) {
+    lines.push(heading(`ALSO SEEN (${r.alsoSeen.length})`));
+    for (const m of r.alsoSeen) lines.push(`- ${m.name} — ${CYAN}${m.url}${RESET}`);
+    lines.push("");
+  }
 
   lines.push(heading("GAPS & OPENING"));
   for (const g of r.gaps) {

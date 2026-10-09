@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergeCompetitors } from "./dedup.js";
+import { mergeCompetitors, mergeMentions } from "./dedup.js";
 import type { Competitor } from "./report.js";
 
 function comp(name: string, url: string, extra: Partial<Competitor> = {}): Competitor {
@@ -71,4 +71,27 @@ test("own domains merge by domain and keep the richest fields", () => {
   assert.equal(out[0].name, "Plan to Eat");
   assert.equal(out[0].pricing, "$5.95/mo");
   assert.equal(out[0].overlap, "direct");
+});
+
+test("alsoSeen drops products that already have a competitor entry", () => {
+  const out = mergeMentions(
+    [
+      { name: "Mealie", url: "https://github.com/mealie-recipes/mealie/tree/main", evidence: [] },
+      { name: "Paprika", url: "https://paprikaapp.com", evidence: [] },
+    ],
+    [comp("Mealie", "https://github.com/mealie-recipes/mealie")],
+  );
+  assert.deepEqual(out.map((m) => m.name), ["Paprika"]);
+});
+
+test("alsoSeen merges repeats and unions their evidence", () => {
+  const out = mergeMentions(
+    [
+      { name: "Paprika", url: "https://paprikaapp.com", evidence: ["a"] },
+      { name: "Paprika 3", url: "https://www.paprikaapp.com/", evidence: ["b"] },
+    ],
+    [],
+  );
+  assert.equal(out.length, 1);
+  assert.deepEqual(out[0].evidence, ["a", "b"]);
 });

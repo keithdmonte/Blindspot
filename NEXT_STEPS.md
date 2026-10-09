@@ -19,7 +19,12 @@ Pick up here. The speed work from 2026-10-08 (a run went from **~295s to ~163s**
 1. [x] **Fix the cost estimate.** The premise was wrong: Sonnet 5's $2 / $10 launch price became the standard price, and the planned rise to $3 / $15 was cancelled (checked on the pricing page, 2026-10-09). What was actually wrong was that cache reads and writes were priced as full input. Cost is now computed per call: input $2, cache write $2.50, cache read $0.20, output $10 per MTok. A typical run now shows about $0.34.
 2. [x] **Land the branch.** Done: PR #3 merged 2026-10-08 with a merge commit, and CI passed.
 3. [x] **Stream the report into the UI as it's written.** `submit_report` uses `eager_input_streaming`. The server sends a `report_partial` event each time another competitor, gap or coverage row finishes, and the report screen fills in as they arrive. In a live test, the first competitor appeared at 69s of a 139s run.
-4. [ ] **Look into the coverage finding below.** When the model listed competitors without writing full details for each, it found 25–50% more real competitors from the same research. This is still open: it trades detail (more "unknown" fields) for coverage, which is a product decision.
+4. [x] **Coverage finding.** Done as two tiers rather than a trade: full `competitors` entries stay as before, and a new `alsoSeen` list holds products that were only *named* in results (name, URL and where it was named). Live, same ideas as before:
+   - Meal planner: 46 full entries (baseline 33–37) plus 46 also seen.
+   - Habit tracker: 51 full entries (baseline 32–34) plus 34 also seen.
+   - Cost: the report write grew to 18–27k output tokens, and runs take 180–270s instead of 120–160s. Meal cost $0.46 vs $0.31–0.41. The habit run's $1.07 came from unusually large search results (355k input tokens), not from this change.
+   - Watch: share of competitors with unknown pricing rose for habit (80% vs 47–59%); traction stayed fully filled.
+   - First attempt said alsoSeen also covered products "past the candidate cap". The model then stopped full entries at 25 and demoted the rest, so that wording is gone: every product with any evidence gets a full entry.
 5. [x] **Unit test for `mergeCompetitors`.** `npm test` (node:test via tsx) covers github.com, producthunt.com and reddit.com URLs, plus merging on a product's own domain. CI runs it too.
 
 ## Findings and decisions
@@ -30,8 +35,8 @@ Pick up here. The speed work from 2026-10-08 (a run went from **~295s to ~163s**
 - **Ruled out to protect quality:** a smaller `CANDIDATE_CAP`, capping evidence URLs, and a faster or cheaper model for the report.
 - **GitHub:** without `GITHUB_TOKEN`, search is rate-limited (10/min) and returns 403s. With the token the limit is 30/min.
 - **The model writes the verdict last.** Observed `submit_report` field order: competitors, gaps, coverage, stopCondition, thinFields, verdict, recommendation, confidence, verdictWhy. So while the report streams, the UI shows "Weighing the verdict…" until the verdict arrives, instead of a default verdict.
-- **Eager streaming skips the API's JSON check.** In 1 of 6 test runs the model's report JSON failed to parse. `callModel` now retries that call once with the report tool buffered (validated as before). Tokens spent on the failed attempt are not counted in the cost shown.
-- **Report size:** report calls used 11–16k output tokens for 33–59 competitors. That's why the old 16k limit truncated.
+- **Streaming crash, real cause:** the stream listener read `block.input` on every delta, and the SDK's partial-JSON parser throws on some in-between buffers (e.g. a half-written number). The throw killed the stream (1 of 6 runs). The listener now skips those reads. As a separate safety net, if the *finished* report JSON doesn't parse, `callModel` retries once with the report tool buffered, and both attempts count toward cost.
+- **Report size:** report calls used 11–16k output tokens for 33–59 competitors (why the old 16k limit truncated), and 18–27k with alsoSeen. `MAX_TOKENS` is now 64000.
 
 ## How to run
 
@@ -42,4 +47,4 @@ npm run typecheck
 npm test                       # offline unit tests, no API calls
 ```
 
-Restart the server after code or `.env` changes, since it reads both only at startup. A full run costs about $0.35 and takes 120–160s.
+Restart the server after code or `.env` changes, since it reads both only at startup. A full run costs about $0.35–0.50 and takes 180–270s; the report starts appearing about 60–160s in.
