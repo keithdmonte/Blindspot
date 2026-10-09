@@ -11,8 +11,9 @@ export const TOOL_CONCURRENCY = 8;
 // Raised from 8000 in Phase 4: GitHub + Reddit push competitor counts high
 // enough that the final report was truncating mid-section (losing META/SOURCES).
 // Raised to 32000: a 16000 cap cut submit_report mid-JSON on crowded ideas,
-// leaving an empty report. Above ~21k the SDK requires streaming (agent.ts).
-export const MAX_TOKENS = 32000;
+// leaving an empty report. Raised to 64000 with alsoSeen: a 46+46 report used
+// 27k. Above ~21k the SDK requires streaming (agent.ts).
+export const MAX_TOKENS = 64000;
 
 /** Enrichment stops past this many competitors — beyond it the verdict is
  * "crowded" regardless, and more enrichment adds cost, not signal. Enforced
@@ -42,6 +43,9 @@ export const SAASHUB_THROTTLE_MS = 1100;
 export const GITHUB_MAX_RESULTS = 10;
 export const REDDIT_MAX_RESULTS = 5;
 
-/** Sonnet 5 $/MTok — intro pricing through 2026-08-31 ($3 in / $15 out after). */
+/** Sonnet 5 $/MTok. The $2/$10 launch price became standard (the planned
+ * 2026-09-01 rise to $3/$15 was cancelled). Cache writes use the 5-minute TTL. */
 export const PRICE_PER_MTOK_IN = 2;
+export const PRICE_PER_MTOK_CACHE_WRITE = 2.5;
+export const PRICE_PER_MTOK_CACHE_READ = 0.2;
 export const PRICE_PER_MTOK_OUT = 10;

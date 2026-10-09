@@ -7,7 +7,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { EventHandler } from "./events.js";
 import type { SourceTool } from "./tools/types.js";
-import { MAX_ITERATIONS, MAX_TOKENS, MAX_TOOL_CALLS, MODEL, TOOL_CONCURRENCY } from "./config.js";
+import {
+  MAX_ITERATIONS,
+  MAX_TOKENS,
+  MAX_TOOL_CALLS,
+  MODEL,
+  PRICE_PER_MTOK_CACHE_READ,
+  PRICE_PER_MTOK_CACHE_WRITE,
+  PRICE_PER_MTOK_IN,
+  PRICE_PER_MTOK_OUT,
+  TOOL_CONCURRENCY,
+} from "./config.js";
 import { coerceReport, REPORT_TOOL, reportTool, type StructuredReport } from "./report.js";
 
 /** Why the run ended: the model finished on its own, or a budget cap fired. */
@@ -17,7 +27,8 @@ export interface AgentResult {
   report: StructuredReport;
   iterations: number;
   toolCalls: number;
-  usage: { inputTokens: number; outputTokens: number };
+  /** inputTokens includes cache reads and writes; cost prices each at its own rate. */
+  usage: { inputTokens: number; outputTokens: number; cost: number };
   stoppedBy: StopReason;
 }
 
@@ -42,32 +53,83 @@ export async function agentLoop(opts: {
   const history: Anthropic.MessageParam[] = [{ role: "user", content: firstMessage }];
 
   let toolCalls = 0;
-  const usage = { inputTokens: 0, outputTokens: 0 };
+  const usage = { inputTokens: 0, outputTokens: 0, cost: 0 };
+
+  // Fallback copy of the report tool without eager streaming, so the API
+  // buffers and validates its JSON again (see callModel).
+  const { eager_input_streaming: _eager, ...bufferedReportTool } = reportTool;
+
+  // One streamed model call. Streamed so the SDK accepts a large max_tokens,
+  // and so the report can reach the UI while the model is still writing it.
+  const streamModel = (messages: Anthropic.MessageParam[], toolChoice: Anthropic.ToolChoice | undefined, buffered: boolean) => {
+    const report = buffered ? bufferedReportTool : reportTool;
+    const stream = client.messages.stream({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: systemPrompt,
+      tools: toolChoice ? [report] : [...definitions.filter((d) => d.name !== REPORT_TOOL), report],
+      tool_choice: toolChoice,
+      messages: withCacheBreakpoints(messages),
+    });
+    let streamedKey = "";
+    stream.on("streamEvent", (event, snapshot) => {
+      if (event.type !== "content_block_delta" || event.delta.type !== "input_json_delta") return;
+      const block = snapshot.content[event.index];
+      if (block?.type !== "tool_use" || block.name !== REPORT_TOOL) return;
+      // The SDK parses the growing JSON on read, and some in-between buffers
+      // (a half-written number like "0.") throw. Skip those; the next delta
+      // parses. An uncaught throw here would kill the whole stream.
+      let input: unknown;
+      try {
+        input = block.input;
+      } catch {
+        return;
+      }
+      const partial = completedPart(input);
+      if (!partial) return;
+      // Only re-send when another item has finished, not on every token.
+      const r = partial.report;
+      const key = [r.competitors, r.alsoSeen, r.gaps, r.coverage].map((a) => a.length).join(":") + partial.verdictReady;
+      if (key === streamedKey) return;
+      streamedKey = key;
+      emit({ type: "report_partial", report: coerceReport(partial.report), verdictReady: partial.verdictReady });
+    });
+    return stream.finalMessage();
+  };
 
   // One model call over `messages`, with prompt caching and usage tracking.
-  // Cache hits count as input tokens too, so the cost shown is an upper bound.
   const callModel = async (
     messages: Anthropic.MessageParam[],
     iteration: number,
     toolChoice?: Anthropic.ToolChoice,
   ) => {
-    // Streamed only because the SDK refuses non-streaming calls this large.
-    const response = await client.messages
-      .stream({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        system: systemPrompt,
-        tools: toolChoice ? [reportTool] : definitions,
-        tool_choice: toolChoice,
-        messages: withCacheBreakpoints(messages),
-      })
-      .finalMessage();
+    let response = await streamModel(messages, toolChoice, false);
+    // Eager streaming skips the API's JSON validation, so the finished report
+    // input can be invalid JSON. Retry once with it buffered (validated).
+    if (!reportParses(response)) {
+      addUsage(response, iteration);
+      emit({ type: "retry", label: "report", attempt: 1, attempts: 2, delayMs: 0, message: "report JSON did not parse" });
+      response = await streamModel(messages, toolChoice, true);
+    }
+    addUsage(response, iteration);
+    return response;
+  };
+
+  // Count a response's tokens and cost, including failed attempts.
+  const addUsage = (response: Anthropic.Message, iteration: number) => {
     const u = response.usage;
-    const input = u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+    const cacheWrite = u.cache_creation_input_tokens ?? 0;
+    const cacheRead = u.cache_read_input_tokens ?? 0;
+    const input = u.input_tokens + cacheWrite + cacheRead;
     usage.inputTokens += input;
     usage.outputTokens += u.output_tokens;
+    usage.cost +=
+      (u.input_tokens * PRICE_PER_MTOK_IN +
+        cacheWrite * PRICE_PER_MTOK_CACHE_WRITE +
+        cacheRead * PRICE_PER_MTOK_CACHE_READ +
+        u.output_tokens * PRICE_PER_MTOK_OUT) /
+      1_000_000;
     emit({ type: "usage", iteration, inputTokens: input, outputTokens: u.output_tokens });
-    return response;
   };
 
   // Dispatch each tool call through the registry, up to TOOL_CONCURRENCY at
@@ -202,6 +264,50 @@ export async function agentLoop(opts: {
 
   // Unreachable: the outOfBudget turn offers no tools, so it always returns above.
   throw new Error("Agent loop exited without a report");
+}
+
+/** False when a submit_report input in this response is not valid JSON. */
+function reportParses(response: Anthropic.Message): boolean {
+  for (const block of response.content) {
+    if (block.type !== "tool_use" || block.name !== REPORT_TOOL) continue;
+    try {
+      void block.input; // parsed lazily by the SDK; throws on invalid JSON
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+type PartialReport = Record<string, unknown> & Record<"competitors" | "alsoSeen" | "gaps" | "coverage", unknown[]>;
+
+/**
+ * The finished part of a submit_report input that is still streaming. Fields
+ * arrive in JSON order, so only the last one can be incomplete: drop it if it
+ * is a scalar, or drop its last item if it is an array. Null until at least
+ * one item is finished. verdictReady says whether the verdict and confidence
+ * (which the model tends to write last) are complete yet.
+ */
+function completedPart(input: unknown): { report: PartialReport; verdictReady: boolean } | null {
+  const o: Record<string, unknown> = { ...((input ?? {}) as Record<string, unknown>) };
+  const last = Object.keys(o).at(-1);
+  if (last !== undefined) {
+    const value = o[last];
+    if (Array.isArray(value)) o[last] = value.slice(0, -1);
+    else delete o[last];
+  }
+  const list = (v: unknown) => (Array.isArray(v) ? v : []);
+  const report: PartialReport = {
+    ...o,
+    competitors: list(o.competitors),
+    alsoSeen: list(o.alsoSeen),
+    gaps: list(o.gaps),
+    coverage: list(o.coverage),
+  };
+  if (!report.competitors.length && !report.alsoSeen.length && !report.gaps.length && !report.coverage.length) {
+    return null;
+  }
+  return { report, verdictReady: typeof o.verdict === "string" && typeof o.confidence === "number" };
 }
 
 /**
