@@ -410,6 +410,9 @@
       gaps: (r.gaps || []).map((g) => ({
         ...g, title: CT(g.title), why: CT(g.why), statLabel: CT(g.statLabel),
       })),
+      openLanes: (r.openLanes || []).map((l) => ({
+        ...l, idea: CT(l.idea), whyOpen: CT(l.whyOpen), gap: CT(l.gap), nearestCompetitor: CT(l.nearestCompetitor),
+      })),
       coverage: (r.coverage || []).map((c) => ({ ...c, source: CT(c.source), note: CT(c.note) })),
     };
   }
@@ -474,8 +477,32 @@
         : `<span style="display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid rgba(255,255,255,0.09); border-radius: 9999px; padding: 4px 12px; font-size: 12.5px; color: #c9c9cf;">${label}</span>`;
     }).join("");
 
-    const gapCards = gaps.map((g) => `
-      <div style="background: linear-gradient(180deg, rgba(94,194,105,0.05), rgba(255,255,255,0.01)); border: 1px solid rgba(94,194,105,0.18); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px;">
+    // Each lane builds on a gap; its chip jumps to that gap's card below.
+    const lanes = r.openLanes || [];
+    const laneCards = lanes.map((l) => {
+      const gi = gaps.findIndex((g) => g.title.toLowerCase() === l.gap.toLowerCase());
+      const near = comps.find((c) => c.name.toLowerCase() === l.nearestCompetitor.toLowerCase());
+      const nearOv = near ? OVERLAP[near.overlap] || OVERLAP.partial : null;
+      const hasNearest = l.nearestCompetitor && !/^(none|unknown)$/i.test(l.nearestCompetitor);
+      const far = l.distance === "far";
+      const chip = "display: inline-flex; align-items: center; border-radius: 9999px; padding: 2px 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.03em;";
+      return `<div style="background: linear-gradient(180deg, rgba(94,194,105,0.06), rgba(255,255,255,0.01)); border: 1px solid rgba(94,194,105,0.22); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <div style="flex: 1; font-size: 15px; font-weight: 600; line-height: 1.45; color: #f5f5f4; text-wrap: pretty;">${esc(l.idea)}</div>
+          <span style="${chip} flex: none; border: 1px solid ${far ? "rgba(232,176,75,0.4)" : "rgba(94,194,105,0.4)"}; color: ${far ? "#e8b04b" : "#5ec269"};">${far ? "far" : "near"}</span>
+        </div>
+        <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #9d9da6; text-wrap: pretty;"><span style="color: #5ec269; font-weight: 600;">Why it's open</span> ${esc(l.whyOpen)}</p>
+        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5;">
+          <div><span style="color: #6f6f77;">Exploits gap</span> ${gi >= 0 ? `<a href="#bs-gap-${gi}" style="${chip} border: 1px solid rgba(255,255,255,0.12); color: #c9c9cf; text-decoration: none;">${esc(l.gap)}</a>` : `<span style="color: #c9c9cf;">${esc(l.gap)}</span>`}</div>
+          <div><span style="color: #6f6f77;">Nearest competitor</span> <span style="color: #f5f5f4; font-weight: 600;">${hasNearest ? esc(l.nearestCompetitor) : "none found"}</span>${nearOv ? ` <span style="color: ${nearOv.color};">${nearOv.label}</span>` : ""}</div>
+        </div>
+        ${l.evidence.some(isUrl) ? `<div style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px;">${l.evidence.filter(isUrl).map((u) => link("evidence", u)).join("")}</div>` : ""}
+      </div>`;
+    }).join("");
+    const openVerdict = !pending && r.verdict === "open lane";
+
+    const gapCards = gaps.map((g, i) => `
+      <div id="bs-gap-${i}" style="background: linear-gradient(180deg, rgba(94,194,105,0.05), rgba(255,255,255,0.01)); border: 1px solid rgba(94,194,105,0.18); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px;">
         ${g.stat ? `<div style="display: flex; align-items: baseline; gap: 10px;">
           <span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; color: #5ec269; font-variant-numeric: tabular-nums;">${esc(g.stat)}</span>
           <span style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #6f6f77;">${esc(g.statLabel || "")}</span>
@@ -518,6 +545,16 @@
           <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">Confidence ${r.confidence.toFixed(2)} · recommendation ${esc(r.recommendation)} · ${deadN ? `${kept} found · <span style="color:#e5695c;">${deadN} dead</span> · ${livingN} living` : `${kept} competitors`}${seen.length ? ` · ${seen.length} more seen` : ""}</span>
         </div>
         <p style="margin: 16px 0 0; max-width: 660px; font-size: 15.5px; line-height: 1.7; color: #c9c9cf; text-wrap: pretty;">${esc(r.verdictWhy)}</p>
+      </div>
+
+      <div style="margin-top: 44px;">
+        <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 22px; color: #f5f5f4;">${openVerdict ? "Adjacent lanes" : "Closest open lane"}</h3>
+          <span style="font-size: 13px; color: #6f6f77;">${openVerdict ? "Your lane is open. Adjacent lanes you could also own" : "Nearby ideas with less competition, each built on a gap found this run"}</span>
+        </div>
+        <div style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+          ${laneCards || empty("No adjacent opening found.")}
+        </div>
       </div>
 
       <div style="margin-top: 56px;">

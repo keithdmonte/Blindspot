@@ -15,6 +15,7 @@ export type Overlap = "direct" | "partial" | "adjacent";
 export type Confidence = "high" | "medium" | "low" | "thin";
 export type StopCondition = "saturation" | "candidate_cap" | "budget_exhausted";
 export type Liveness = "active" | "stale" | "dead" | "unknown";
+export type PivotDistance = "near" | "far";
 
 export interface Competitor {
   name: string;
@@ -56,6 +57,22 @@ export interface Gap {
   evidence: string[];
 }
 
+/** A nearby idea more open than the one asked about. Only ships when it
+ * builds on a gap from this run. */
+export interface OpenLane {
+  /** The adjacent idea, one line, phrased as a product. */
+  idea: string;
+  /** Why it's open, grounded in what the run found. */
+  whyOpen: string;
+  /** Title of the gap (in gaps) it builds on. */
+  gap: string;
+  /** Closest competitor to this lane by name, or "none". */
+  nearestCompetitor: string;
+  /** near = small tack; far = real change of direction. */
+  distance: PivotDistance;
+  evidence: string[];
+}
+
 export interface Coverage {
   source: string;
   queries: number;
@@ -73,6 +90,7 @@ export interface StructuredReport {
   competitors: Competitor[];
   alsoSeen: Mention[];
   gaps: Gap[];
+  openLanes: OpenLane[];
   coverage: Coverage[];
   stopCondition: StopCondition;
   /** Fields that were thin/unknown across competitors (e.g. "pricing"). */
@@ -191,6 +209,29 @@ export const reportTool: Anthropic.Tool = {
           required: ["title", "why", "evidence"],
         },
       },
+      openLanes: {
+        type: "array",
+        description:
+          "2-3 nearby ideas more open than the one asked about: same skills and direction, less " +
+          "competition. If the verdict is open lane, adjacent lanes the user could also own. Each " +
+          "builds on one entry in gaps. Empty if no gap supports one.",
+        items: {
+          type: "object",
+          properties: {
+            idea: { type: "string", description: "One line, phrased as a product, e.g. \"Meeting notes scoped to sales calls, with CRM write-back\"." },
+            whyOpen: { type: "string", description: "One line grounded in this run, e.g. \"no living competitor targets sales teams; the 3 that tried are dead\"." },
+            gap: { type: "string", description: "The title of the gaps entry it builds on, copied exactly." },
+            nearestCompetitor: { type: "string", description: "Name of the closest entry in competitors, or \"none\"." },
+            distance: {
+              type: "string",
+              enum: ["near", "far"],
+              description: "near = a small tack from the original idea; far = a real change of direction.",
+            },
+            evidence: { type: "array", items: { type: "string" }, description: "URL(s) showing the lane is open." },
+          },
+          required: ["idea", "whyOpen", "gap", "nearestCompetitor", "distance", "evidence"],
+        },
+      },
       coverage: {
         type: "array",
         description: "One row per source you actually used.",
@@ -225,6 +266,7 @@ export const reportTool: Anthropic.Tool = {
       "competitors",
       "alsoSeen",
       "gaps",
+      "openLanes",
       "coverage",
       "stopCondition",
       "thinFields",
@@ -320,6 +362,26 @@ export function coerceReport(input: unknown): StructuredReport {
     verdictWhy = s.verdictWhy || verdictWhy;
   }
 
+  // Grounding: a lane ships only if it cites evidence and builds on a gap that
+  // is actually in the report. Its gap is normalized to that gap's exact title.
+  const gapTitles = new Map(salvagedGaps.map((g) => [g.title.trim().toLowerCase(), g.title]));
+  const openLanes: OpenLane[] = [];
+  for (const raw of arr(o.openLanes)) {
+    const l = (raw ?? {}) as Record<string, unknown>;
+    const gap = gapTitles.get(str(l.gap, "").trim().toLowerCase());
+    const evidence = arr(l.evidence).filter((e): e is string => typeof e === "string");
+    const idea = str(l.idea, "");
+    if (!gap || !evidence.length || !idea) continue;
+    openLanes.push({
+      idea,
+      whyOpen: str(l.whyOpen, ""),
+      gap,
+      nearestCompetitor: str(l.nearestCompetitor, "none"),
+      distance: l.distance === "far" ? "far" : "near",
+      evidence,
+    });
+  }
+
   const mergedComps = mergeCompetitors(salvagedComps);
   const alsoSeen = mergeMentions(
     arr(o.alsoSeen).map((raw) => {
@@ -341,6 +403,7 @@ export function coerceReport(input: unknown): StructuredReport {
     competitors: mergedComps,
     alsoSeen,
     gaps: salvagedGaps,
+    openLanes: openLanes.slice(0, 3),
     coverage: salvagedCov,
     stopCondition,
     thinFields: arr(o.thinFields).filter((t): t is string => typeof t === "string"),
@@ -470,6 +533,16 @@ export function renderReportForTerminal(r: StructuredReport): string {
     `${r.verdict}  ·  recommendation: ${r.recommendation}  ·  confidence ${r.confidence.toFixed(2)}`,
   );
   lines.push(r.verdictWhy);
+  lines.push("");
+
+  lines.push(heading(r.verdict === "open lane" ? "ADJACENT LANES YOU COULD ALSO OWN" : "CLOSEST OPEN LANE"));
+  if (!r.openLanes.length) lines.push(`${DIM}No adjacent opening found.${RESET}`);
+  for (const l of r.openLanes) {
+    lines.push(`- ${BOLD}${l.idea}${RESET}  ${DIM}[${l.distance}]${RESET}`);
+    lines.push(`  why open: ${l.whyOpen}`);
+    lines.push(`  exploits gap: ${l.gap}   nearest: ${l.nearestCompetitor}`);
+    lines.push(`  evidence: ${l.evidence.map((e) => CYAN + e + RESET).join("  ")}`);
+  }
   lines.push("");
 
   lines.push(heading(`COMPETITORS (${r.competitors.length})`));
