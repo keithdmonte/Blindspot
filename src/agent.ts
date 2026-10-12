@@ -89,7 +89,7 @@ export async function agentLoop(opts: {
       if (!partial) return;
       // Only re-send when another item has finished, not on every token.
       const r = partial.report;
-      const key = [r.competitors, r.alsoSeen, r.gaps, r.coverage].map((a) => a.length).join(":") + partial.verdictReady;
+      const key = [r.competitors, r.alsoSeen, r.gaps, r.openLanes, r.coverage].map((a) => a.length).join(":") + partial.verdictReady;
       if (key === streamedKey) return;
       streamedKey = key;
       emit({ type: "report_partial", report: coerceReport(partial.report), verdictReady: partial.verdictReady });
@@ -279,7 +279,7 @@ function reportParses(response: Anthropic.Message): boolean {
   return true;
 }
 
-type PartialReport = Record<string, unknown> & Record<"competitors" | "alsoSeen" | "gaps" | "coverage", unknown[]>;
+type PartialReport = Record<string, unknown> & Record<"competitors" | "alsoSeen" | "gaps" | "openLanes" | "coverage", unknown[]>;
 
 /**
  * The finished part of a submit_report input that is still streaming. Fields
@@ -302,6 +302,7 @@ function completedPart(input: unknown): { report: PartialReport; verdictReady: b
     competitors: list(o.competitors),
     alsoSeen: list(o.alsoSeen),
     gaps: list(o.gaps),
+    openLanes: list(o.openLanes),
     coverage: list(o.coverage),
   };
   if (!report.competitors.length && !report.alsoSeen.length && !report.gaps.length && !report.coverage.length) {
