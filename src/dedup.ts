@@ -107,6 +107,14 @@ function keyOf(c: { name: string; url: string }): string {
   return name;
 }
 
+/** The product's own domain, or null when its URL is on a shared host (a repo,
+ * a listing, a post) where the host's liveness says nothing about the product. */
+export function ownDomain(url: string): string | null {
+  const host = (url || "").trim().toLowerCase().match(/^https?:\/\/([^/?#:]+)/)?.[1]?.replace(/^www\./, "");
+  if (!host || NAME_KEYED_HOSTS.has(host) || PATH_KEYED_HOSTS[host]) return null;
+  return host;
+}
+
 /** Prefer the longer, non-"unknown" value between two text fields. */
 function richer(a: string, b: string): string {
   const aOk = a && a !== "unknown";

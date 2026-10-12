@@ -54,7 +54,7 @@ Short and current beats long and stale. Phases, not dates. Each phase has a "don
 
 ## Phase 6 — Liveness & the Pivot Finder
 
-Move from a **directory** ("who exists") to a **decision** ("this lane is dead-crowded; *this* adjacent one is open"). Open work: [#8](https://github.com/keithdmonte/Blindspot/issues/8) (pivot finder), [#9](https://github.com/keithdmonte/Blindspot/issues/9) (liveness follow-ups).
+Move from a **directory** ("who exists") to a **decision** ("this lane is dead-crowded; *this* adjacent one is open"). Liveness and the pivot finder have shipped. Open work: the wider-net sources below, and [#12](https://github.com/keithdmonte/Blindspot/issues/12) (validate a suggested lane).
 
 - **Liveness** — every competitor tagged Active / Stale / Dead / Unknown from dated signals already returned (GitHub last push, PH/HN dates, dead-domain check). A **Hide dead** toggle collapses a fake-crowded market to its living players; the summary recomputes. This is the moment Blindspot beats a Google search — it shows the corpse *and* says it's a corpse.
 - **Honest count** — the same product arriving from HN + PH + GitHub is merged into one entry with a `seen in N sources` corroboration chip, sortable. No more double-counting inflating the verdict.

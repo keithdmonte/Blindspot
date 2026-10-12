@@ -35,6 +35,10 @@ export const MAX_QUERIES = 12;
  * retried (withRetry) instead of holding up the whole parallel search round. */
 export const FETCH_TIMEOUT_MS = 20_000;
 
+/** Timeout for the post-report reachability probe of each competitor's site.
+ * Short: probes run in parallel after the report, and a timeout changes nothing. */
+export const PROBE_TIMEOUT_MS = 5_000;
+
 /** Per-source result sizes */
 export const HN_HITS_PER_PAGE = 10;
 export const TAVILY_MAX_RESULTS = 5;

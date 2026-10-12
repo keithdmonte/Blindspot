@@ -18,7 +18,8 @@ import {
   PRICE_PER_MTOK_OUT,
   TOOL_CONCURRENCY,
 } from "./config.js";
-import { coerceReport, REPORT_TOOL, reportTool, type StructuredReport } from "./report.js";
+import { coerceReport, deadNote, REPORT_TOOL, reportTool, type StructuredReport } from "./report.js";
+import { applyReachability } from "./reachability.js";
 
 /** Why the run ended: the model finished on its own, or a budget cap fired. */
 export type StopReason = "model" | "iteration_cap" | "tool_call_cap";
@@ -242,7 +243,9 @@ export async function agentLoop(opts: {
       if (response.stop_reason === "max_tokens") {
         throw new Error(`submit_report truncated at max_tokens (${MAX_TOKENS})`);
       }
-      const report = coerceReport(reportCall.input);
+      const coerced = coerceReport(reportCall.input);
+      const competitors = await applyReachability(coerced.competitors);
+      const report = { ...coerced, competitors, deadNote: deadNote(coerced.verdict, competitors) };
       emit({ type: "report", report });
       return { report, iterations: iteration, toolCalls, usage, stoppedBy: capReason ?? "model" };
     }
