@@ -2,7 +2,7 @@
 
 **Find the competitors Google can't.** An "is this idea taken?" validator that surfaces the small, new, obscure players authority-ranked search structurally misses.
 
-![Blindspot report for a pet-sitting marketplace idea: verdict "Crowded, but there's a lane", 34 competitors found, 8 dead, with competitor cards for Rover, Wag! and PetBacker](docs/screenshot.png)
+![Blindspot report for a pet-sitting marketplace idea: verdict "Crowded, but there's a lane", 25 competitors found, 6 dead, with competitor cards for Rover, Wag! and Pawshake](docs/screenshot.png)
 
 ## What it does
 
