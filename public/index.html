@@ -429,6 +429,8 @@
     const obscureN = comps.filter((c) => c.obscure).length;
     const deadN = comps.filter((c) => c.alive === "dead").length;
     const livingN = kept - deadN;
+    const activeN = comps.filter((c) => c.alive === "active").length;
+    const unsureN = livingN - activeN; // stale or no dated signal
 
     const compCards = comps.map((c) => {
       const ov = OVERLAP[c.overlap] || OVERLAP.partial;
@@ -545,7 +547,7 @@
         <h2 style="margin: 20px 0 0; font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.035em; font-size: clamp(36px, 5.2vw, 50px); line-height: 1.04; text-wrap: balance;"><span style="color: ${v.color}; text-shadow: 0 0 48px ${mix(35)};">${esc(v.lead)}</span> <span style="color: #f5f5f4;">${esc(v.rest)}</span></h2>
         <div style="margin-top: 16px; display: ${pending ? "none" : "flex"}; align-items: center; gap: 14px; flex-wrap: wrap;">
           <span style="display: inline-flex; align-items: center; border: 1px solid ${mix(40)}; color: ${v.color}; background: ${mix(10)}; border-radius: 9999px; padding: 5px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;">${esc(r.verdict)}</span>
-          <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">Confidence ${r.confidence.toFixed(2)} · recommendation ${esc(r.recommendation)} · ${deadN ? `${kept} found · <span style="color:#e5695c;">${deadN} dead</span> · ${livingN} living` : `${kept} competitors`}${seen.length ? ` · ${seen.length} more seen` : ""}</span>
+          <span style="font-size: 12.5px; color: #9d9da6; font-variant-numeric: tabular-nums;">Confidence ${r.confidence.toFixed(2)} · recommendation ${esc(r.recommendation)} · ${deadN ? `${kept} found · <span style="color:#e5695c;">${deadN} dead</span> · ${activeN} active${unsureN ? ` · ${unsureN} stale or unknown` : ""}` : `${kept} competitors`}${seen.length ? ` · ${seen.length} more seen` : ""}</span>
         </div>
         <p style="margin: 16px 0 0; max-width: 660px; font-size: 15.5px; line-height: 1.7; color: #c9c9cf; text-wrap: pretty;">${esc(r.verdictWhy)}</p>
         ${r.deadNote ? `<p style="margin: 12px 0 0; max-width: 660px; font-size: 14.5px; line-height: 1.6; font-weight: 600; color: #e5695c;">${esc(r.deadNote)}</p>` : ""}
