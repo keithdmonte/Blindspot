@@ -1,6 +1,6 @@
 # Spec — Saved runs
 
-Status: **draft, 2026-10-14**. Phase 5 item from [ROADMAP.md](ROADMAP.md). Decisions marked **(decide)** need an answer before building.
+Status: **draft, 2026-10-14**. Phase 5 item from [ROADMAP.md](ROADMAP.md). Storage and sharing decided 2026-10-14; remaining questions at the end.
 
 ## Why
 
@@ -38,25 +38,25 @@ The run log (the streamed tool-call events) is **not** saved. It is large and on
 
 Shape the record exactly like the `done` event plus `id`, `idea`, `createdAt` and `parentId`, so the front-end renders a saved run with the same `renderReport(report, stats)` call it uses today.
 
-## Storage (decide)
+## Storage — decided: JSON files
 
 The app runs on Node 20 and is not deployed anywhere yet (localhost only, per [TECHNICAL_DESIGN.md](TECHNICAL_DESIGN.md)).
 
-- **A. JSON file per run in `runs/` (recommended).** Zero dependencies, zero setup, works on localhost today. `runs/` is git-ignored. List = read the directory, newest first. Fine up to thousands of runs. On Railway it needs a volume mounted at `runs/`.
+- **A. JSON file per run in `runs/` (chosen).** Zero dependencies, zero setup, works on localhost today. `runs/` is git-ignored. List = read the directory, newest first. Fine up to thousands of runs. On Railway it needs a volume mounted at `runs/`.
 - **B. Postgres via `pg`.** One dependency plus a database to run locally (or a Railway Postgres). Worth it only for several server instances or querying across runs, and Blindspot needs neither yet.
 - **C. SQLite.** Node 20 has no built-in `node:sqlite`, so this means `better-sqlite3`, a native module. More setup than A with little gain at this size.
 
-Either way, put storage behind a four-function module (`saveRun`, `getRun`, `listRuns`, `deleteRun`) in `src/runs.ts`, so moving A to B later touches one file.
+Put storage behind a four-function module (`saveRun`, `getRun`, `listRuns`, `deleteRun`) in `src/runs.ts`, so moving A to B later touches one file.
 
 Like `APP_PASSWORD`, saving is env-driven: `RUNS_DIR` (default `runs/`). No separate on/off switch.
 
-## Sharing (decide)
+## Sharing — decided: public read-only link
 
-- **Read-only link `/r/:id`, no access code (recommended).** The access code gates *spending*; viewing a saved report costs nothing. The random id is the secret: anyone with the link can view, nobody can list or guess others. Only useful once the app is deployed, since a localhost link works for nobody else.
-- **Also gate links behind the access code.** Safer for confidential ideas, but then sharing means sharing the code, which also lets the recipient spend.
-- **Download instead of a link.** A *Download report* button that saves a self-contained HTML file. Works with no deploy, but it's a second rendering path to maintain.
+- **Read-only link `/r/:id`, no access code (chosen).** The access code gates *spending*; viewing a saved report costs nothing. The random id is the secret: anyone with the link can view, nobody can list or guess others. Only useful once the app is deployed, since a localhost link works for nobody else.
+- *Rejected:* **also gate links behind the access code.** Safer for confidential ideas, but then sharing means sharing the code, which also lets the recipient spend.
+- *Rejected:* **download instead of a link.** A *Download report* button that saves a self-contained HTML file. Works with no deploy, but it's a second rendering path to maintain.
 
-Whichever is chosen: history and delete stay behind the access code, and a shared page shows no history, delete or *New idea* controls.
+History and delete stay behind the access code, and a shared page shows no history, delete or *New idea* controls.
 
 ## API
 
@@ -66,9 +66,9 @@ All new routes follow the existing `/run` auth rule: gated when `APP_PASSWORD` i
 |---|---|---|
 | `POST /run` | unchanged | unchanged stream; the `done` event gains `id`. Body may add `parentId` |
 | `GET /runs` | access code | `[{ id, idea, createdAt, verdict, competitorCount, cost, parentId }]`, newest first |
-| `GET /runs/:id` | see Sharing | full saved record, or 404 |
+| `GET /runs/:id` | none (id is the secret) | full saved record, or 404 |
 | `DELETE /runs/:id` | access code | 204, or 404 |
-| `GET /r/:id` | see Sharing | the normal `index.html`; the page sees `/r/:id`, fetches `/runs/:id` and renders it read-only |
+| `GET /r/:id` | none | the normal `index.html`; the page sees `/r/:id`, fetches `/runs/:id` and renders it read-only |
 
 Today the access code goes in the `/run` POST body. GET and DELETE need it in a header instead (`X-Access-Code`). The front-end keeps the code in memory after the first successful run, as now.
 
@@ -84,7 +84,7 @@ A save failure (disk full, bad permissions) must not break the run: log it and s
 ## Done when
 
 - A finished run appears in *Recent runs* after a page reload and re-opens with the same verdict, competitors, gaps, lanes and dead-competitor line, at $0.
-- A share link opens the report in a private window under the chosen Sharing rule.
+- A share link opens the report in a private window without the access code, and `/runs` still demands it.
 - A lane run shows its parent and links back to it.
 - Stopping a run mid-way saves nothing.
 - A forced save failure still shows the report.
