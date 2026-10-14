@@ -30,7 +30,7 @@ One record per finished run, written when the server sends the `done` event:
 | `id` | generated | random, unguessable (`crypto.randomUUID()`); doubles as the share token |
 | `idea` | request body | |
 | `createdAt` | server clock | ISO timestamp |
-| `parentId` | request body, optional | set when the run came from a lane button |
+| `parentId`, `parentIdea` | request body + parent's saved record, optional | set when the run came from a lane button and the parent exists; the idea is copied so the header needs no second fetch |
 | `report` | `done.report` | the `StructuredReport`, as sent to the browser |
 | `stats` | `done` event | `iterations`, `toolCalls`, `inputTokens`, `outputTokens`, `cost`, `stoppedBy` |
 
@@ -46,7 +46,7 @@ The app runs on Node 20 and is not deployed anywhere yet (localhost only, per [T
 - **B. Postgres via `pg`.** One dependency plus a database to run locally (or a Railway Postgres). Worth it only for several server instances or querying across runs, and Blindspot needs neither yet.
 - **C. SQLite.** Node 20 has no built-in `node:sqlite`, so this means `better-sqlite3`, a native module. More setup than A with little gain at this size.
 
-Put storage behind a four-function module (`saveRun`, `getRun`, `listRuns`, `deleteRun`) in `src/runs.ts`, so moving A to B later touches one file.
+Put storage behind a small module (`saveRun`, `getRun`, `listRuns`) in `src/runs.ts`, so moving A to B later touches one file.
 
 Like `APP_PASSWORD`, saving is env-driven: `RUNS_DIR` (default `runs/`). No separate on/off switch.
 
@@ -56,7 +56,7 @@ Like `APP_PASSWORD`, saving is env-driven: `RUNS_DIR` (default `runs/`). No sepa
 - *Rejected:* **also gate links behind the access code.** Safer for confidential ideas, but then sharing means sharing the code, which also lets the recipient spend.
 - *Rejected:* **download instead of a link.** A *Download report* button that saves a self-contained HTML file. Works with no deploy, but it's a second rendering path to maintain.
 
-History and delete stay behind the access code, and a shared page shows no history, delete or *New idea* controls.
+History stays behind the access code, and a shared page shows no history, lane buttons or *New idea* controls.
 
 ## API
 
@@ -67,10 +67,9 @@ All new routes follow the existing `/run` auth rule: gated when `APP_PASSWORD` i
 | `POST /run` | unchanged | unchanged stream; the `done` event gains `id`. Body may add `parentId` |
 | `GET /runs` | access code | `[{ id, idea, createdAt, verdict, competitorCount, cost, parentId }]`, newest first |
 | `GET /runs/:id` | none (id is the secret) | full saved record, or 404 |
-| `DELETE /runs/:id` | access code | 204, or 404 |
 | `GET /r/:id` | none | the normal `index.html`; the page sees `/r/:id`, fetches `/runs/:id` and renders it read-only |
 
-Today the access code goes in the `/run` POST body. GET and DELETE need it in a header instead (`X-Access-Code`). The front-end keeps the code in memory after the first successful run, as now.
+Today the access code goes in the `/run` POST body. `GET /runs` takes it in a header instead (`X-Access-Code`). The front-end keeps the code in memory after the first successful run, as now.
 
 A save failure (disk full, bad permissions) must not break the run: log it and send `done` without `id`. The user still sees the report, just with no share link.
 
@@ -88,10 +87,10 @@ A save failure (disk full, bad permissions) must not break the run: log it and s
 - A lane run shows its parent and links back to it.
 - Stopping a run mid-way saves nothing.
 - A forced save failure still shows the report.
-- `npm test` covers `src/runs.ts` (save → get → list order → delete → 404) against a temp directory.
+- `npm test` covers `src/runs.ts` (save → get → list order → unknown and malformed ids) against a temp directory.
 
 ## Open questions
 
 - Retention: keep forever, or cap history at N runs? (Default: forever. Each record is one report's JSON plus stats; measure a real one before deciding.)
-- Should `DELETE` exist in v1, or is deleting files by hand enough for a single-user app?
+- Delete: left out of v1 (2026-10-14). Deleting a file from `runs/` by hand is enough for a single-user app; add `DELETE /runs/:id` when there's a UI for it.
 - Deploy: sharing by link needs the app reachable from outside. Does Railway deploy (roadmap's CD item) come before or after this?

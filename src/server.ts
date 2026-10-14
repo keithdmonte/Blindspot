@@ -4,7 +4,8 @@
  *
  * The engine (src/discovery.ts) is UI-agnostic and emits DiscoveryEvents; this
  * server forwards each event to the browser as a line of NDJSON over a single
- * long-lived POST /run response. No database yet — history lands in PR2.
+ * long-lived POST /run response. Finished runs are saved (src/runs.ts) and
+ * can be re-opened from history or shared read-only at /r/:id.
  *
  * Run: npm run serve   (needs ANTHROPIC_API_KEY in .env)
  *
@@ -17,10 +18,11 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { timingSafeEqual } from "node:crypto";
-import Fastify from "fastify";
+import Fastify, { type FastifyReply } from "fastify";
 import Anthropic from "@anthropic-ai/sdk";
 import type { DiscoveryEvent } from "./events.js";
 import { runDiscovery } from "./discovery.js";
+import { getRun, isRunId, listRuns, saveRun, type SavedRun } from "./runs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -39,6 +41,8 @@ const tavilyApiKey = process.env.TAVILY_API_KEY;
 const productHuntToken = process.env.PRODUCTHUNT_API_TOKEN;
 const githubToken = process.env.GITHUB_TOKEN;
 const port = Number(process.env.PORT ?? 3000);
+// Where finished runs are saved, one JSON file each.
+const runsDir = process.env.RUNS_DIR?.trim() || join(__dirname, "..", "runs");
 // Localhost only unless HOST opts in (e.g. 0.0.0.0 for Docker or a deploy).
 const host = process.env.HOST?.trim() || "127.0.0.1";
 
@@ -98,19 +102,43 @@ function friendlyError(err: unknown): string {
 const app = Fastify({ logger: false });
 
 // The whole front-end is one self-contained file; no bundler, no static plugin.
-app.get("/", async (_req, reply) => {
+// A share link /r/:id gets the same page, which then loads that run itself.
+const sendIndex = async (_req: unknown, reply: FastifyReply) => {
   const html = await readFile(join(__dirname, "..", "public", "index.html"), "utf8");
   reply.type("text/html").send(html);
-});
+};
+app.get("/", sendIndex);
+app.get("/r/:id", sendIndex);
 
 app.get("/health", async () => ({ ok: true }));
 
 // Lets the front-end know whether to show the password field.
 app.get("/config", async () => ({ authRequired }));
 
+// History lists every saved idea, so it sits behind the same code as /run.
+// A single run is open: its random id is the secret a share link carries.
+app.get("/runs", async (req, reply) => {
+  if (authRequired && !passwordOk(req.headers["x-access-code"])) {
+    reply.code(401).send({ error: "Wrong password." });
+    return;
+  }
+  return listRuns(runsDir);
+});
+
+app.get("/runs/:id", async (req, reply) => {
+  const run = await getRun(runsDir, (req.params as { id: string }).id);
+  if (!run) {
+    reply.code(404).send({ error: "Run not found." });
+    return;
+  }
+  return run;
+});
+
 interface RunBody {
   idea?: unknown;
   password?: unknown;
+  /** Set by a "Validate this lane" button: the run the lane came from. */
+  parentId?: unknown;
 }
 
 app.post("/run", async (req, reply) => {
@@ -126,6 +154,7 @@ app.post("/run", async (req, reply) => {
     reply.code(400).send({ error: "Missing idea." });
     return;
   }
+  const parent = isRunId(body.parentId) ? await getRun(runsDir, body.parentId).catch(() => undefined) : undefined;
 
   // Take over the socket and stream newline-delimited JSON events as they fire.
   reply.hijack();
@@ -144,6 +173,12 @@ app.post("/run", async (req, reply) => {
 
   const onEvent = (event: DiscoveryEvent) => send(event);
 
+  // Stop in the UI drops the connection; a run nobody is watching isn't saved.
+  let clientGone = false;
+  res.on("close", () => {
+    if (!res.writableEnded) clientGone = true;
+  });
+
   try {
     const result = await runDiscovery(idea, {
       anthropicApiKey,
@@ -152,16 +187,25 @@ app.post("/run", async (req, reply) => {
       githubToken,
       onEvent,
     });
-    send({
-      type: "done",
-      report: result.report,
+    const stats = {
       iterations: result.iterations,
       toolCalls: result.toolCalls,
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
       cost: result.usage.cost,
       stoppedBy: result.stoppedBy,
-    });
+    };
+    const lineage = parent ? { parentId: parent.id, parentIdea: parent.idea } : {};
+    // A failed save must not cost the user the report: log it, send done without an id.
+    let saved: SavedRun | undefined;
+    if (!clientGone) {
+      try {
+        saved = await saveRun(runsDir, { idea, ...lineage, report: result.report, stats });
+      } catch (err) {
+        console.error("Could not save run:", err);
+      }
+    }
+    send({ type: "done", report: result.report, ...stats, ...lineage, ...(saved ? { id: saved.id } : {}) });
   } catch (err) {
     console.error(err);
     const message = friendlyError(err);
