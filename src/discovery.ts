@@ -22,6 +22,8 @@ export async function runDiscovery(
     productHuntToken?: string;
     githubToken?: string;
     onEvent?: EventHandler;
+    /** Aborting stops the run: no further model or tool calls are started. */
+    signal?: AbortSignal;
   },
 ): Promise<DiscoveryResult> {
   const emit = opts.onEvent ?? (() => {});
@@ -47,7 +49,7 @@ export async function runDiscovery(
     .filter((tool) => tool.discovery)
     .map((tool) => tool.definition.name);
 
-  const queries = await expandQueries(client, idea, emit);
+  const queries = await expandQueries(client, idea, emit, opts.signal);
 
   const result = await agentLoop({
     client,
@@ -62,6 +64,7 @@ export async function runDiscovery(
     seedCalls: discoveryTools.flatMap((name) => queries.map((query) => ({ name, input: { query } }))),
     registry,
     onEvent: emit,
+    signal: opts.signal,
   });
 
   return { ...result, queries };

@@ -173,10 +173,11 @@ app.post("/run", async (req, reply) => {
 
   const onEvent = (event: DiscoveryEvent) => send(event);
 
-  // Stop in the UI drops the connection; a run nobody is watching isn't saved.
-  let clientGone = false;
+  // Stop in the UI drops the connection. A run nobody is watching is aborted,
+  // so it stops spending, and isn't saved.
+  const abort = new AbortController();
   res.on("close", () => {
-    if (!res.writableEnded) clientGone = true;
+    if (!res.writableEnded) abort.abort();
   });
 
   try {
@@ -186,6 +187,7 @@ app.post("/run", async (req, reply) => {
       productHuntToken,
       githubToken,
       onEvent,
+      signal: abort.signal,
     });
     const stats = {
       iterations: result.iterations,
@@ -198,7 +200,7 @@ app.post("/run", async (req, reply) => {
     const lineage = parent ? { parentId: parent.id, parentIdea: parent.idea } : {};
     // A failed save must not cost the user the report: log it, send done without an id.
     let saved: SavedRun | undefined;
-    if (!clientGone) {
+    if (!abort.signal.aborted) {
       try {
         saved = await saveRun(runsDir, { idea, ...lineage, report: result.report, stats });
       } catch (err) {
@@ -207,6 +209,10 @@ app.post("/run", async (req, reply) => {
     }
     send({ type: "done", report: result.report, ...stats, ...lineage, ...(saved ? { id: saved.id } : {}) });
   } catch (err) {
+    if (abort.signal.aborted) {
+      console.log(`Run stopped by client: ${idea}`);
+      return;
+    }
     console.error(err);
     const message = friendlyError(err);
     send({ type: "fatal", message });

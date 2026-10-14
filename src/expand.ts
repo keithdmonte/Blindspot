@@ -38,6 +38,7 @@ export async function expandQueries(
   client: Anthropic,
   idea: string,
   emit: EventHandler,
+  signal?: AbortSignal,
 ): Promise<string[]> {
   emit({ type: "expansion_start" });
 
@@ -49,7 +50,7 @@ export async function expandQueries(
         system: EXPANSION_PROMPT,
         messages: [{ role: "user", content: `PRODUCT IDEA: ${idea}` }],
         output_config: { format: { type: "json_schema", schema: EXPANSION_SCHEMA } },
-      });
+      }, { signal });
 
       const text = response.content
         .filter((block): block is Anthropic.TextBlock => block.type === "text")
@@ -79,6 +80,8 @@ export async function expandQueries(
       emit({ type: "expansion_done", queries });
       return queries;
     } catch (err) {
+      // A stopped run must stop here, not fall back and carry on.
+      signal?.throwIfAborted();
       if (attempt >= 2) {
         emit({
           type: "expansion_fallback",
