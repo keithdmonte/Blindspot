@@ -96,6 +96,25 @@ export interface StructuredReport {
   /** Fields that were thin/unknown across competitors (e.g. "pricing"). */
   thinFields: string[];
   sources: string[];
+  /** Set on the final report when much of a crowded/taken field is dead. */
+  deadNote?: string;
+}
+
+/** Share of dead competitors at which a crowded/taken verdict says so plainly. */
+const DEAD_NOTE_SHARE = 0.25;
+
+/** "Crowded on paper (34 players), but 8 look abandoned; 19 are actively
+ * maintained." — or undefined when the dead share is small or the lane is open. */
+export function deadNote(verdict: Verdict, competitors: Competitor[]): string | undefined {
+  const total = competitors.length;
+  const dead = competitors.filter((c) => c.alive === "dead").length;
+  if (verdict === "open lane" || !total || dead / total < DEAD_NOTE_SHARE) return undefined;
+  const active = competitors.filter((c) => c.alive === "active").length;
+  return (
+    `${verdict === "taken" ? "Taken" : "Crowded"} on paper (${total} players), ` +
+    `but ${dead} ${dead === 1 ? "looks" : "look"} abandoned; ` +
+    `${active} ${active === 1 ? "is" : "are"} actively maintained.`
+  );
 }
 
 /** Tool name the agent calls to end a run with the structured report. */
@@ -533,6 +552,7 @@ export function renderReportForTerminal(r: StructuredReport): string {
     `${r.verdict}  ·  recommendation: ${r.recommendation}  ·  confidence ${r.confidence.toFixed(2)}`,
   );
   lines.push(r.verdictWhy);
+  if (r.deadNote) lines.push(`${BOLD}${r.deadNote}${RESET}`);
   lines.push("");
 
   lines.push(heading(r.verdict === "open lane" ? "ADJACENT LANES YOU COULD ALSO OWN" : "CLOSEST OPEN LANE"));
