@@ -43,8 +43,10 @@ export async function agentLoop(opts: {
    * calls are fully determined by the prompt (the discovery fan-out). */
   seedCalls?: { name: string; input: Record<string, unknown> }[];
   onEvent?: EventHandler;
+  /** Aborting cancels the model call in flight and starts no new calls. */
+  signal?: AbortSignal;
 }): Promise<AgentResult> {
-  const { client, systemPrompt, firstMessage, registry } = opts;
+  const { client, systemPrompt, firstMessage, registry, signal } = opts;
   const emit = opts.onEvent ?? (() => {});
 
   // Source tools plus submit_report — the tool the model calls to end the run.
@@ -71,7 +73,7 @@ export async function agentLoop(opts: {
       tools: toolChoice ? [report] : [...definitions.filter((d) => d.name !== REPORT_TOOL), report],
       tool_choice: toolChoice,
       messages: withCacheBreakpoints(messages),
-    });
+    }, { signal });
     let streamedKey = "";
     stream.on("streamEvent", (event, snapshot) => {
       if (event.type !== "content_block_delta" || event.delta.type !== "input_json_delta") return;
@@ -176,6 +178,8 @@ export async function agentLoop(opts: {
     let next = 0;
     const worker = async () => {
       while (next < toolUses.length) {
+        // Calls already running finish; queued ones never start.
+        signal?.throwIfAborted();
         const i = next++;
         results[i] = await runOne(toolUses[i]);
       }
@@ -185,6 +189,7 @@ export async function agentLoop(opts: {
   };
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+    signal?.throwIfAborted();
     emit({ type: "iteration", iteration, maxIterations: MAX_ITERATIONS });
 
     // Seeded first turn: record the calls as the model's and run them, no API call.
