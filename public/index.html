@@ -479,7 +479,9 @@
 
     // Each lane builds on a gap; its chip jumps to that gap's card below.
     const lanes = r.openLanes || [];
-    const laneCards = lanes.map((l) => {
+    // Validation runs are one level deep: their own lanes get no button.
+    const canValidate = !stats.partial && !laneRun;
+    const laneCards = lanes.map((l, i) => {
       const gi = gaps.findIndex((g) => g.title.toLowerCase() === l.gap.toLowerCase());
       const near = comps.find((c) => c.name.toLowerCase() === l.nearestCompetitor.toLowerCase());
       const nearOv = near ? OVERLAP[near.overlap] || OVERLAP.partial : null;
@@ -497,6 +499,7 @@
           <div><span style="color: #6f6f77;">Nearest competitor</span> <span style="color: #f5f5f4; font-weight: 600;">${hasNearest ? esc(l.nearestCompetitor) : "none found"}</span>${nearOv ? ` <span style="color: ${nearOv.color};">${nearOv.label}</span>` : ""}</div>
         </div>
         ${l.evidence.some(isUrl) ? `<div style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px;">${l.evidence.filter(isUrl).map((u) => link("evidence", u)).join("")}</div>` : ""}
+        ${canValidate ? `<button class="bs-ghost bs-validatelane" data-lane="${i}" title="Starts a fresh full run on this idea (~$0.40)" style="align-self: flex-start; margin-top: 2px; min-height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(94,194,105,0.4); background: rgba(94,194,105,0.06); color: #5ec269; font-weight: 600; font-size: 12.5px; font-family: inherit; transition: border-color 150ms ease;">Validate this lane →</button>` : ""}
       </div>`;
     }).join("");
     const openVerdict = !pending && r.verdict === "open lane";
@@ -616,6 +619,11 @@
       </div>`;
 
     $("screen-report").querySelectorAll(".bs-newidea").forEach((b) => b.addEventListener("click", reset));
+    $("screen-report").querySelectorAll(".bs-validatelane").forEach((b) => b.addEventListener("click", () => {
+      $("bs-idea").value = lanes[+b.dataset.lane].idea;
+      laneRun = true;
+      run();
+    }));
     const hideBtn = $("screen-report").querySelector(".bs-hidedead");
     if (hideBtn) hideBtn.addEventListener("click", () => {
       const next = hideBtn.dataset.hidden !== "1";
@@ -636,6 +644,7 @@
   // ---- flow ---------------------------------------------------------------
   let controller = null;
   let authRequired = false; // set from GET /config on load
+  let laneRun = false; // current run was started from a "Validate this lane" button
 
   // Rotating headline while a run is in progress.
   const RUN_TITLES = [
@@ -748,10 +757,11 @@
     }
   }
 
-  $("bs-validate").addEventListener("click", run);
+  const runIdea = () => { laneRun = false; run(); };
+  $("bs-validate").addEventListener("click", runIdea);
   $("bs-stop").addEventListener("click", reset);
   $("bs-demo").addEventListener("click", (e) => { e.preventDefault(); $("bs-idea").value = DEMO; $("bs-idea").focus(); });
-  $("bs-idea").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run(); });
+  $("bs-idea").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") runIdea(); });
 
   // Show the access-code field only when the server gates /run (APP_PASSWORD set).
   fetch("/config").then((r) => r.json()).then((c) => {
